@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tamara Pen — Biochemistry Portfolio</title>
+  <meta name="description" content="Portfolio of Tamara Pen, BSc Biochemistry graduate: research, skills, projects and documents." />
+
+  <!--
+    Content-Security-Policy: no inline scripts/styles, no third-party scripts.
+    Limits what injected code could do, which matters because the owner's
+    GitHub token lives in sessionStorage while signed in.
+    connect-src api.github.com is needed only for owner sign-in/saving.
+  -->
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' blob:; connect-src 'self' https://api.github.com; base-uri 'none'; form-action 'none'; object-src 'none'" />
+
+  <!-- Font (optional: the site falls back to system fonts if blocked) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <!-- Brand on the left, owner pencil on the right. Section navigation lives under the profile photo (render.js). -->
+  <header class="topbar" id="top">
+    <div class="wrap topbar__inner">
+      <span id="brand-slot" class="brand-slot"></span>
+      <!-- Owner sign-in. auth.js is imported only when this is clicked; editor.js only after a valid GitHub token. -->
+      <button type="button" id="owner-login" class="edit-fab" data-tooltip="sign in to edit" aria-label="Sign in to edit">
+        <svg class="edit-fab__icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+          <path d="M4 20h4L19.5 8.5a2.1 2.1 0 0 0 0-3l-1-1a2.1 2.1 0 0 0-3 0L4 16v4z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+          <path d="M14 6l4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <noscript><p class="notice wrap">This portfolio needs JavaScript enabled to display its content.</p></noscript>
+
+  <!-- Sections are filled from data.json by js/render.js -->
+  <main id="main" class="wrap">
+    <section id="overview" class="section"></section>
+    <section id="skills" class="section"></section>
+    <section id="experience" class="section"></section>
+    <section id="education" class="section"></section>
+    <section id="work" class="section"></section>
+    <section id="contact" class="section"></section>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap footer__inner" id="footer-slot"></div>
+  </footer>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

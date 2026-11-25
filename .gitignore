@@ -1,0 +1,5 @@
+# Personal documents: the repo is public. Upload a CV without private details via the editor instead.
+CVTamaraPen.pdf
+*.pdf.bak
+.DS_Store
+__pycache__/
