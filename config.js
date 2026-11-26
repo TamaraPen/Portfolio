@@ -12,8 +12,14 @@ export const CONFIG = {
   },
   // Site content file (relative to index.html)
   dataPath: "data.json",
-  // Where uploaded photos/documents are committed
+  // Where uploaded photos/documents/videos are committed
   uploadDir: "assets/uploads",
-  // Per-file upload cap (MB). Keeps commits fast and the repo small.
-  maxUploadMB: 5,
+  // Per-file upload caps (MB). GitHub blocks files over 100 MB and warns over 50 MB; uploads are
+  // sent base64-encoded (about a third larger), and a Pages site may be at most 1 GB in total.
+  uploadLimitsMB: {
+    image: 5,
+    pdf: 15,
+    video: 25,
+    other: 15,
+  },
 };

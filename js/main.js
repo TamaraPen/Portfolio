@@ -4,6 +4,7 @@ import { CONFIG } from "../config.js";
 import { state } from "./state.js";
 import { renderAll, RENDERED_EVENT } from "./render.js";
 import { TOKEN_KEY } from "./util.js";
+import "./viewer.js"; // project media viewer (display code, safe for visitors)
 
 async function loadData() {
   // "no-cache" = always revalidate, so visitors see saved changes as soon as Pages has published them.

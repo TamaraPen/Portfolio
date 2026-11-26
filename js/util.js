@@ -81,6 +81,52 @@ export function resolveUrl(path) {
   return pending.has(path) ? pending.get(path).url : safeUrl(path);
 }
 
+/**
+ * src for <img>/<video>/PDF <iframe>: only files on this site (relative paths) or blob: previews of
+ * files chosen this session. Absolute/external URLs and any other scheme are refused ("").
+ */
+export function localMediaUrl(path) {
+  const url = resolveUrl(path);
+  if (!url) return "";
+  if (url.startsWith("blob:")) return pending.has(path) ? url : "";
+  if (/^[a-z][a-z0-9+.-]*:/i.test(url) || url.startsWith("//") || url.startsWith("\\")) return "";
+  return url;
+}
+
+// --- Video embeds (YouTube / Vimeo only) ---------------------------------------
+const YT_ID = /^[A-Za-z0-9_-]{11}$/;
+const EMBED_OK = [
+  /^https:\/\/www\.youtube-nocookie\.com\/embed\/[A-Za-z0-9_-]{11}$/,
+  /^https:\/\/player\.vimeo\.com\/video\/\d{1,12}$/,
+];
+
+/** The stored embed URL, only if it is exactly an allow-listed player URL; otherwise "". */
+export function safeEmbedUrl(raw) {
+  const s = String(raw || "");
+  return EMBED_OK.some((re) => re.test(s)) ? s : "";
+}
+
+/** Turns a pasted YouTube/Vimeo page or share link into its privacy-friendly player URL, or "". */
+export function toEmbedUrl(raw) {
+  let u;
+  try { u = new URL(String(raw || "").trim()); } catch { return ""; }
+  if (u.protocol !== "https:" && u.protocol !== "http:") return "";
+  const host = u.hostname.replace(/^(www\.|m\.)/, "");
+  const parts = u.pathname.split("/").filter(Boolean);
+  let id = "";
+  if (host === "youtu.be") id = parts[0] || "";
+  else if (host === "youtube.com" || host === "youtube-nocookie.com") {
+    if (parts[0] === "watch") id = u.searchParams.get("v") || "";
+    else if (["embed", "shorts", "live", "v"].includes(parts[0])) id = parts[1] || "";
+  }
+  if (id) return YT_ID.test(id) ? `https://www.youtube-nocookie.com/embed/${id}` : "";
+  if (host === "vimeo.com" || host === "player.vimeo.com") {
+    const vid = (host === "player.vimeo.com" ? parts[1] : parts.find((p) => /^\d+$/.test(p))) || "";
+    return /^\d{1,12}$/.test(vid) ? `https://player.vimeo.com/video/${vid}` : "";
+  }
+  return "";
+}
+
 // --- Misc --------------------------------------------------------------------
 export function uid() {
   return "id" + Math.random().toString(36).slice(2, 10);

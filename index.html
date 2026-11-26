@@ -11,9 +11,11 @@
     Limits what injected code could do, which matters because the owner's
     GitHub token lives in sessionStorage while signed in.
     connect-src api.github.com is needed only for owner sign-in/saving.
+    media-src: uploaded videos (and blob: previews before saving).
+    frame-src: uploaded PDFs in the browser's viewer, plus YouTube (privacy mode) and Vimeo players.
   -->
   <meta http-equiv="Content-Security-Policy"
-        content="default-src 'none'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' blob:; connect-src 'self' https://api.github.com; base-uri 'none'; form-action 'none'; object-src 'none'" />
+        content="default-src 'none'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' blob:; media-src 'self' blob:; frame-src 'self' blob: https://www.youtube-nocookie.com https://player.vimeo.com; connect-src 'self' https://api.github.com; base-uri 'none'; form-action 'none'; object-src 'none'" />
 
   <!-- Font (optional: the site falls back to system fonts if blocked) -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />

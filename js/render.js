@@ -8,6 +8,7 @@
 //   data-links="path"       list of {label,url}
 //   data-url="path"         element whose value is a URL / uploaded file path (+ data-url-kind="email")
 //   data-img="path"         image slot (+ data-alt="path" for its alt text)
+//   data-media="path"       project media viewer (list of media items; see viewer.js)
 //   data-collection="path"  list that can be added to/removed from (children have data-item;
 //                           data-template names the TEMPLATES entry used for new items)
 //   data-badge="path"       placeholder badge text
@@ -16,7 +17,7 @@
 // Every visible piece of text inside <main> is rendered inside a [data-edit] element, so
 // the owner can change all of it. Separators (" – ", ", ") come from CSS, not text nodes.
 
-import { el, svg, resolveUrl, initials } from "./util.js";
+import { el, svg, resolveUrl, initials, localMediaUrl, safeEmbedUrl } from "./util.js";
 
 export const RENDERED_EVENT = "portfolio:rendered";
 
@@ -49,7 +50,9 @@ const DEFAULT_UI = {
   brand: "", viewProjects: "View projects", getInTouch: "Get in touch",
   contactEmail: "Email", contactLinkedIn: "LinkedIn", contactLocation: "Location",
   viewProfile: "View profile", openFile: "Open file", fileMissing: "File not added yet",
-  noImage: "No image", footer: "", backToTop: "Back to top",
+  noImage: "No media yet", footer: "", backToTop: "Back to top",
+  accOverview: "Overview", accTools: "Tools used / how it was built", accLearned: "What I learned",
+  accDocs: "View full documents", openFullSize: "Open PDF full size",
 };
 const DEFAULT_NAV = [
   { id: "overview", label: "Overview" }, { id: "skills", label: "Skills" },
@@ -70,41 +73,49 @@ export function ensureShape(d) {
   d.headings = { ...DEFAULT_HEADINGS, ...(d.headings || {}) };
   for (const key of ["skills", "experience", "additional", "education", "projects", "documents"]) if (!Array.isArray(d[key])) d[key] = [];
   for (const x of [...d.experience, ...d.additional, ...d.education]) { x.bullets ||= []; x.place ??= ""; }
-  for (const p of d.projects) { p.citations ||= []; p.imageAlt ??= ""; p.tags ||= []; p.links ||= []; }
+  for (const p of d.projects) {
+    p.citations ||= []; p.imageAlt ??= ""; p.tags ||= []; p.links ||= [];
+    if (!Array.isArray(p.media)) p.media = p.image ? [{ type: "image", src: p.image, alt: p.imageAlt || "", caption: "", poster: "" }] : [];
+    for (const k of ["tools", "learned", "toolsPlaceholder", "learnedPlaceholder", "mediaPlaceholder", "github", "live", "document"]) p[k] ??= "";
+  }
   for (const g of d.skills) g.items ||= [];
   for (const k of ["github", "cv", "photoAlt", "photoPlaceholder", "githubPlaceholder", "cvPlaceholder", "emailPlaceholder"]) d.profile[k] ??= "";
   d.contact ||= { intro: "" };
   return d;
 }
 
-// --- Icons (inline SVG: the CSP blocks external images) ----------------------
-const ICONS = {
+// --- Icons (inline SVG filled with currentColor, so CSS can recolour them; the CSP blocks external images) ---
+const stroke = (d, w = 1.7) => ["path", { d, fill: "none", stroke: "currentColor", "stroke-width": w, "stroke-linecap": "round", "stroke-linejoin": "round" }];
+export const ICONS = {
   linkedin: () => svg("0 0 24 24", [
     ["rect", { x: 3.6, y: 9, width: 3.6, height: 11.4, rx: 0.4, fill: "currentColor" }],
     ["circle", { cx: 5.4, cy: 5.2, r: 2.1, fill: "currentColor" }],
     ["path", { fill: "currentColor", d: "M9.9 9h3.4v1.6c.6-1.1 2-1.9 3.8-1.9 3.2 0 4.3 2 4.3 5.1v6.6H18v-5.8c0-1.5-.4-2.6-1.9-2.6-1.6 0-2.4 1.1-2.4 2.7v5.7H9.9z" }],
   ]),
-  // Gmail-style "M" envelope in Google's four brand colours
-  email: () => svg("0 0 24 24", [
-    ["path", { fill: "#4285F4", d: "M2 7.2v11.1c0 .9.7 1.7 1.6 1.7H6.4V10.6L2 7.2z" }],
-    ["path", { fill: "#34A853", d: "M22 7.2v11.1c0 .9-.7 1.7-1.6 1.7h-2.8V10.6L22 7.2z" }],
-    ["path", { fill: "#EA4335", d: "M6.4 10.6V6.8L12 11l5.6-4.2v3.8L12 14.8z" }],
-    ["path", { fill: "#C5221F", d: "M2 7.2l4.4 3.4V6.8L4.6 5.4C3.5 4.6 2 5.4 2 6.7z" }],
-    ["path", { fill: "#FBBC04", d: "M22 7.2l-4.4 3.4V6.8l1.8-1.4c1.1-.8 2.6 0 2.6 1.3z" }],
-  ], "icon icon--gmail"),
-  cv: () => svg("0 0 24 24", [
-    ["path", { fill: "none", stroke: "currentColor", "stroke-width": 1.7, "stroke-linejoin": "round", d: "M6.5 3h7.5l4 4v14h-11.5z" }],
-    ["path", { fill: "none", stroke: "currentColor", "stroke-width": 1.7, "stroke-linejoin": "round", d: "M14 3v4h4" }],
-    ["path", { fill: "none", stroke: "currentColor", "stroke-width": 1.7, "stroke-linecap": "round", d: "M9.3 11.5h5.9M9.3 14.5h5.9M9.3 17.5h3.8" }],
-  ]),
   // GitHub mark (Octicons "mark-github", MIT licence)
   github: () => svg("0 0 16 16", [
     ["path", { fill: "currentColor", d: "M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z" }],
   ]),
+  // The owner's CV artwork (assets/icons/cv-mask.png) used as a CSS mask, so it recolours like the SVGs
+  cv: () => el("span", { class: "icon icon--mask icon--cv", "aria-hidden": "true" }),
+  // The owner's two Gmail artworks: pale (rest) and colour (hover / focus / press)
+  email: () => [
+    el("img", { class: "icon-img icon-img--rest", src: "assets/icons/gmail-rest.png", alt: "", width: 48, height: 48, decoding: "async" }),
+    el("img", { class: "icon-img icon-img--active", src: "assets/icons/gmail-hover.png", alt: "", width: 48, height: 48, decoding: "async" }),
+  ],
+  live: () => svg("0 0 24 24", [stroke("M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z"), stroke("M3 12h18"), stroke("M12 3c2.5 2.6 3.6 5.6 3.6 9s-1.1 6.4-3.6 9c-2.5-2.6-3.6-5.6-3.6-9S9.5 5.6 12 3z")]),
+  document: () => svg("0 0 24 24", [stroke("M6.5 3h7.5l4 4v14h-11.5z"), stroke("M14 3v4h4"), stroke("M9.3 11.5h5.9M9.3 14.5h5.9M9.3 17.5h3.8")]),
+  chevron: () => svg("0 0 24 24", [stroke("M6 9l6 6 6-6", 2)], "icon icon--chevron"),
+  prev: () => svg("0 0 24 24", [stroke("M15 5l-7 7 7 7", 2.2)]),
+  next: () => svg("0 0 24 24", [stroke("M9 5l7 7-7 7", 2.2)]),
 };
 
-/** Round icon link. External links open in a new tab; mailto: does not. */
-function iconLink({ kind, label, path, href, external, extra = {} }) {
+/**
+ * Shared round icon button (hero links and project panels). One pattern for all kinds:
+ * pale tinted circle + coloured glyph at rest; solid colour + white glyph on hover/focus/press.
+ * External links open in a new tab; mailto: does not. The href is editable via data-url.
+ */
+export function iconButton({ kind, label, path, href, external = true, extra = {} }) {
   return el("a", {
     class: `social social--${kind}${href ? "" : " is-empty"}`,
     href: href || null,
@@ -140,10 +151,10 @@ function overview(d) {
       el("a", { class: "btn", href: "#work" }, el("span", ed("ui.viewProjects"), d.ui.viewProjects)),
       el("a", { class: "btn btn--ghost", href: "#contact" }, el("span", ed("ui.getInTouch"), d.ui.getInTouch))),
     el("div", { class: "socials" },
-      iconLink({ kind: "linkedin", label: "LinkedIn profile", path: "profile.linkedin", href: resolveUrl(p.linkedin), external: true }),
-      iconLink({ kind: "email", label: `Email ${p.name}`, path: "profile.email", href: p.email ? `mailto:${p.email}` : null, external: false, extra: { "data-url-kind": "email" } }),
-      iconLink({ kind: "cv", label: "CV", path: "profile.cv", href: resolveUrl(p.cv), external: true }),
-      iconLink({ kind: "github", label: "GitHub profile", path: "profile.github", href: resolveUrl(p.github), external: true })),
+      iconButton({ kind: "linkedin", label: "LinkedIn profile", path: "profile.linkedin", href: resolveUrl(p.linkedin), external: true }),
+      iconButton({ kind: "email", label: `Email ${p.name}`, path: "profile.email", href: p.email ? `mailto:${p.email}` : null, external: false, extra: { "data-url-kind": "email" } }),
+      iconButton({ kind: "cv", label: "CV", path: "profile.cv", href: resolveUrl(p.cv), external: true }),
+      iconButton({ kind: "github", label: "GitHub profile", path: "profile.github", href: resolveUrl(p.github), external: true })),
     el("div", { class: "badges" },
       p.github ? null : badge("profile.githubPlaceholder", p.githubPlaceholder),
       p.cv ? null : badge("profile.cvPlaceholder", p.cvPlaceholder)));
@@ -199,20 +210,104 @@ function education(d) {
   ];
 }
 
-function projectCard(p, i) {
+// --- Project media viewer -------------------------------------------------------
+// Each media item becomes one or more slides. Behaviour (arrows, dots, keys, swipe, lightbox)
+// lives in viewer.js and works by event delegation, so re-rendering is safe.
+function slide(itemPath, content, caption, extra = {}) {
+  return el("figure", { class: "viewer__slide", role: "group", "aria-roledescription": "slide", "data-item-path": itemPath, ...extra },
+    el("div", { class: "viewer__frame", "data-pos": extra["data-pos"] || null }, content),
+    el("figcaption", { class: "viewer__caption", ...ed(`${itemPath}.caption`) }, caption || ""));
+}
+
+function mediaSlides(p, b, ui) {
+  const out = [];
+  p.media.forEach((m, i) => {
+    const ip = `${b}.media.${i}`;
+    const label = m.alt || m.caption || p.title;
+    if (m.type === "image") {
+      out.push(slide(ip, el("img", { class: "viewer__media", src: localMediaUrl(m.src) || null, alt: m.alt || "", "data-lightbox": "", "data-alt-path": `${ip}.alt`, decoding: "async" }), m.caption));
+    } else if (m.type === "slides") {
+      const list = Array.isArray(m.slides) ? m.slides : [];
+      list.forEach((sl, j) => out.push(slide(ip,
+        el("img", { class: "viewer__media", src: localMediaUrl(sl.src) || null, alt: sl.alt || "", "data-lightbox": "", "data-alt-path": `${ip}.slides.${j}.alt`, decoding: "async" }),
+        m.caption, { "data-slide-path": `${ip}.slides.${j}`, "data-pos": `${j + 1} / ${list.length}` })));
+    } else if (m.type === "video") {
+      out.push(slide(ip, el("video", {
+        class: "viewer__media", controls: "", playsinline: "", preload: "metadata",
+        src: localMediaUrl(m.src) || null, poster: localMediaUrl(m.poster) || null, "aria-label": label,
+      }), m.caption));
+    } else if (m.type === "pdf") {
+      const src = localMediaUrl(m.src);
+      out.push(slide(ip, el("div", { class: "viewer__pdf" },
+        src ? el("iframe", { src: `${src}#view=FitH`, title: label, loading: "lazy" }) : null,
+        el("a", { class: "viewer__open btn btn--ghost", href: src || null, target: "_blank", rel: "noopener noreferrer" }, el("span", ed("ui.openFullSize"), ui.openFullSize))), m.caption));
+    } else if (m.type === "embed") {
+      const src = safeEmbedUrl(m.src);
+      out.push(slide(ip, src
+        ? el("iframe", {
+          class: "viewer__embed", src, title: label, loading: "lazy", allowfullscreen: "",
+          allow: "fullscreen; picture-in-picture; encrypted-media",
+          sandbox: "allow-scripts allow-same-origin allow-presentation allow-popups",
+          referrerpolicy: "strict-origin-when-cross-origin",
+        })
+        : el("div", { class: "viewer__blocked", role: "img", "aria-label": "This video link is not allowed" }), m.caption));
+    }
+  });
+  return out;
+}
+
+function viewer(p, b, ui) {
+  const slides = mediaSlides(p, b, ui);
+  const n = slides.length;
+  slides.forEach((sl, k) => {
+    sl.setAttribute("aria-label", `${k + 1} of ${n}`);
+    if (k === 0) sl.classList.add("is-current"); else sl.hidden = true;
+  });
+  const navBtn = (dir) => el("button", { type: "button", class: `viewer__nav viewer__nav--${dir}`, "data-viewer-step": dir === "prev" ? "-1" : "1", "aria-label": dir === "prev" ? "Previous slide" : "Next slide" }, ICONS[dir]());
+  return el("div", {
+    class: "viewer", role: "region", "aria-roledescription": "carousel", "aria-label": `Media: ${p.title}`,
+    "data-viewer": "", "data-media": `${b}.media`, "data-count": n, tabindex: n > 1 ? "0" : null,
+    hidden: n || p.mediaPlaceholder ? null : "",
+  },
+    el("div", { class: "viewer__stage", "aria-live": "polite" },
+      n ? slides : el("div", { class: "viewer__empty" }, badge(`${b}.mediaPlaceholder`, p.mediaPlaceholder))),
+    n > 1 ? [navBtn("prev"), navBtn("next"),
+      el("div", { class: "viewer__dots" }, slides.map((_, k) =>
+        el("button", { type: "button", class: "viewer__dot", "data-viewer-go": k, "aria-label": `Show slide ${k + 1} of ${n}`, "aria-current": k === 0 ? "true" : null })))] : null);
+}
+
+function accordionRow(key, labelKey, ui, open, ...body) {
+  return el("details", { class: `acc acc--${key}`, open: open ? "" : null },
+    el("summary", {}, el("span", { class: "acc__label", ...ed(`ui.${labelKey}`) }, ui[labelKey]), ICONS.chevron()),
+    el("div", { class: "acc__body" }, body));
+}
+
+function projectCard(p, i, ui) {
   const b = `projects.${i}`;
-  return el("article", { class: "card project", "data-item": b },
-    el("figure", { class: "project__img", "data-img": `${b}.image`, "data-alt": `${b}.imageAlt`, hidden: p.image ? null : "" },
-      p.image ? el("img", { src: resolveUrl(p.image), alt: p.imageAlt || "", loading: "lazy" }) : null),
-    el("p", { class: "chip", "data-pill": "kind", ...ed(`${b}.kind`) }, p.kind),
-    el("h3", ed(`${b}.title`), p.title),
-    el("p", { class: "project__meta", ...ed(`${b}.meta`) }, p.meta),
-    el("p", { class: "project__summary", ...ed(`${b}.summary`) }, p.summary),
-    el("ul", { class: "citations", "data-collection": `${b}.citations`, "data-template": "citation", "data-add-label": "Add citation" },
-      p.citations.map((c, j) => el("li", { "data-item": `${b}.citations.${j}` }, el("span", ed(`${b}.citations.${j}`), c)))),
-    tagList(`${b}.tags`, p.tags, "tags"),
-    linkList(`${b}.links`, p.links),
-    badge(`${b}.placeholder`, p.placeholder));
+  return el("article", { class: "project", "data-item": b },
+    viewer(p, b, ui),
+    el("div", { class: "project__body" },
+      el("p", { class: "chip", "data-pill": "kind", ...ed(`${b}.kind`) }, p.kind),
+      el("h3", { class: "project__title", ...ed(`${b}.title`) }, p.title),
+      el("p", { class: "project__meta", ...ed(`${b}.meta`) }, p.meta),
+      tagList(`${b}.tags`, p.tags, "tags"),
+      el("div", { class: "accordion" },
+        accordionRow("overview", "accOverview", ui, true,
+          el("p", { class: "project__summary", ...ed(`${b}.summary`, true) }, p.summary),
+          el("ul", { class: "citations", "data-collection": `${b}.citations`, "data-template": "citation", "data-add-label": "Add citation" },
+            p.citations.map((c, j) => el("li", { "data-item": `${b}.citations.${j}` }, el("span", ed(`${b}.citations.${j}`), c))))),
+        accordionRow("tools", "accTools", ui, false,
+          el("p", { class: "project__text", ...ed(`${b}.tools`, true) }, p.tools),
+          badge(`${b}.toolsPlaceholder`, p.toolsPlaceholder)),
+        accordionRow("learned", "accLearned", ui, false,
+          el("p", { class: "project__text", ...ed(`${b}.learned`, true) }, p.learned),
+          badge(`${b}.learnedPlaceholder`, p.learnedPlaceholder)),
+        accordionRow("docs", "accDocs", ui, false, linkList(`${b}.links`, p.links))),
+      el("div", { class: "socials project__buttons" },
+        iconButton({ kind: "github", label: `GitHub repository: ${p.title}`, path: `${b}.github`, href: resolveUrl(p.github) }),
+        iconButton({ kind: "live", label: `Live link: ${p.title}`, path: `${b}.live`, href: resolveUrl(p.live) }),
+        iconButton({ kind: "document", label: `Document: ${p.title}`, path: `${b}.document`, href: resolveUrl(p.document) })),
+      badge(`${b}.placeholder`, p.placeholder)));
 }
 
 function docRow(x, i, ui) {
@@ -233,7 +328,7 @@ function work(d) {
   return [
     heading("work-heading", "headings.work", d.headings.work),
     heading("projects-heading", "headings.projects", d.headings.projects, "h3", "section__sub"),
-    el("div", { class: "grid", "data-collection": "projects", "data-add-label": "Add project" }, d.projects.map(projectCard)),
+    el("div", { class: "projects", "data-collection": "projects", "data-add-label": "Add project" }, d.projects.map((p, i) => projectCard(p, i, d.ui))),
     el("div", { class: "docs-wrap" },
       heading("documents-heading", "headings.documents", d.headings.documents, "h3", "section__sub"),
       el("ul", { class: "docs", "data-collection": "documents", "data-add-label": "Add document" }, d.documents.map((x, i) => docRow(x, i, d.ui)))),

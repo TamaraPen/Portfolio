@@ -3,3 +3,7 @@ CVTamaraPen.pdf
 *.pdf.bak
 .DS_Store
 __pycache__/
+# Original icon artwork (the site uses the small versions in assets/icons/)
+CV_icon.png
+gmail_icon_1.jpeg
+gmail_icon_2.jpeg
