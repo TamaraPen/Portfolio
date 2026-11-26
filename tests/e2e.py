@@ -856,6 +856,19 @@ def owner_checks(b, url):
     check("after sign-in, edit mode is switched on automatically", good_token)
     check("token kept in sessionStorage only", lambda: b.js(
         "sessionStorage.getItem('tp_owner_token') === 'good-token' && !Object.values(localStorage).some(v => v.includes('good-token'))"))
+
+    def refresh_stays_in_view_mode():
+        b.goto(url)   # refresh while still signed in for this tab
+        b.sleep(1.0)
+        r = b.js("""({ editing: document.body.classList.contains('editing'), bar: !!document.querySelector('.ownerbar'),
+                      editable: !!document.querySelector('[contenteditable]'), tip: document.getElementById('owner-login').dataset.tooltip,
+                      loaded: performance.getEntriesByType('resource').map(e => new URL(e.name).pathname).filter(p => /editor|auth|github|dialog/.test(p)) })""")
+        b.js("document.getElementById('owner-login').click()")   # the owner actively asks for edit mode
+        b.wait("document.body.classList.contains('editing') && document.querySelector('.ownerbar')")
+        no_dialog = b.js("!document.querySelector('dialog[open]')")
+        ok = (not r["editing"] and not r["bar"] and not r["editable"] and r["tip"] == "edit page" and r["loaded"] == [] and no_dialog)
+        return (ok, (r, no_dialog))
+    check("refreshing while signed in stays in normal view; edit mode starts only when the pencil is clicked", refresh_stays_in_view_mode)
     check("pencil stays visible and keeps the owner-login id", lambda: b.js(
         "(() => { const b = document.getElementById('owner-login'); return !b.hidden && b.getBoundingClientRect().top >= 0 && b.getBoundingClientRect().width > 30; })()"))
     FAB_JS = """(() => { const f = document.getElementById('owner-login'); const s = getComputedStyle(f);

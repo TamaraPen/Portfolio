@@ -79,30 +79,30 @@ async function startOwnerMode(token) {
   owner = await startEditor({ token });
 }
 
+// Edit mode only ever starts when the owner clicks the pencil. A page load or refresh never
+// starts it (and never loads auth.js/editor.js), even if this tab is still signed in.
 function initOwnerLogin() {
   const btn = document.getElementById("owner-login");
+  const setTip = (text) => { btn.dataset.tooltip = text; btn.setAttribute("aria-label", text[0].toUpperCase() + text.slice(1)); };
+  if (sessionStorage.getItem(TOKEN_KEY)) setTip("edit page"); // still signed in: no need to paste the token again
+
   btn.addEventListener("click", async () => {
-    if (owner) { owner.toggle(); return; }  // signed in: the pencil switches edit mode on/off
+    if (owner) { owner.toggle(); return; }  // editor running: EXIT / pencil switch edit mode
     if (busy) return;
     busy = true;
     try {
-      const { promptLogin } = await import("./auth.js");
-      const token = await promptLogin();
+      const auth = await import("./auth.js");
+      // Signed in earlier in this tab: re-check that token with GitHub instead of asking again.
+      let token = sessionStorage.getItem(TOKEN_KEY) ? await auth.restoreSession() : null;
+      if (!token) {
+        setTip("sign in to edit");
+        token = await auth.promptLogin();
+      }
       if (token) await startOwnerMode(token);
     } finally {
       busy = false;
     }
   });
-  // Same tab, already signed in earlier: restore the session.
-  if (sessionStorage.getItem(TOKEN_KEY)) {
-    busy = true;
-    import("./auth.js")
-      .then(async ({ restoreSession }) => {
-        const token = await restoreSession();
-        if (token) await startOwnerMode(token);
-      })
-      .finally(() => { busy = false; });
-  }
 }
 
 async function init() {
