@@ -226,7 +226,15 @@
           "id": "psa2025",
           "type": "project",
           "title": "Beta-carotene and Lipid Metabolism as Mediators of Probiotic-induced Immunometabolism Modulation",
-          "media": [],
+          "media": [
+            {
+              "type": "image",
+              "alt": "",
+              "caption": "",
+              "poster": "",
+              "src": "assets/uploads/1795722246581-vnbd-applespark.png"
+            }
+          ],
           "accordions": [
             {
               "title": "Overview",
@@ -234,14 +242,19 @@
             },
             {
               "title": "Tools used / how it was built",
-              "body": ""
+              "body": "with apples"
             },
             {
               "title": "What I learned",
-              "body": ""
+              "body": "so much"
             }
           ],
-          "documents": [],
+          "documents": [
+            {
+              "label": "apple doc",
+              "url": "assets/uploads/1795722332466-125b-applespark.png"
+            }
+          ],
           "buttons": [
             {
               "kind": "github",
