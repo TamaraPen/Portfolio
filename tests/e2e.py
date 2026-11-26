@@ -560,8 +560,19 @@ def visitor_checks(b, url):
               and gh[1]["fg"] == "rgb(255, 255, 255)" and all(int(v) <= 48 for v in re.findall(r"\d+", gh[1]["bg"])[:3]))
         return (ok, (cv, gh))
     check("CV fills dark sage #4B6455 and GitHub near-black with a white mark when active", cv_github_colours)
-    check("GitHub and CV show visible Placeholder badges", lambda: b.js(
-        "['profile.githubPlaceholder', 'profile.cvPlaceholder'].every(p => { const e = document.querySelector(`[data-badge=\"${p}\"]`); return e && e.offsetParent && /placeholder/i.test(e.textContent); })"))
+    def placeholder_badges():
+        vis = "['profile.githubPlaceholder', 'profile.cvPlaceholder'].map(p => { const e = document.querySelector(`[data-badge=\"${p}\"]`); return !!(e && e.offsetParent && /placeholder/i.test(e.textContent)); })"
+        set_ = lambda gh, cv: b.js("Promise.all([import('/js/render.js'), import('/js/state.js')]).then(([r, s]) => { const p = s.state.data.profile;"
+                                   f" p.github = {json.dumps(gh)}; p.cv = {json.dumps(cv)}; p.githubPlaceholder = 'Placeholder: add GitHub profile link';"
+                                   " p.cvPlaceholder = 'Placeholder: upload CV (PDF)'; r.renderAll(s.state.data); return true; })")
+        set_("", "")
+        empty = b.js(vis)
+        set_("https://github.com/TamaraPen", "assets/uploads/cv.pdf")
+        filled = b.js(vis)
+        b.goto(url)
+        return (empty == [True, True] and filled == [False, False], (empty, filled))
+    check("GitHub and CV show visible Placeholder badges", placeholder_badges)
+
 
     # --- Item 7: justified body text
     check("body text justified with hyphenation; headings, nav, pills and dates are not", lambda: b.js(
