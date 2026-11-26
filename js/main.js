@@ -70,36 +70,53 @@ function initNavHighlight() {
 
 // --- Owner tools ---------------------------------------------------------------
 // Nothing from auth.js is loaded until the owner clicks the pencil, and editor.js is loaded
-// only after a GitHub token has been verified. Visitors never download either.
+// only after GitHub has accepted the token. Visitors never download either.
 let owner = null;   // { toggle } once the editor is running
 let busy = false;
-
-async function startOwnerMode(token) {
-  const { startEditor } = await import("./editor.js");
-  owner = await startEditor({ token });
-}
 
 // Edit mode only ever starts when the owner clicks the pencil. A page load or refresh never
 // starts it (and never loads auth.js/editor.js), even if this tab is still signed in.
 function initOwnerLogin() {
   const btn = document.getElementById("owner-login");
   const setTip = (text) => { btn.dataset.tooltip = text; btn.setAttribute("aria-label", text[0].toUpperCase() + text.slice(1)); };
+  const loading = (on) => {
+    btn.classList.toggle("is-loading", on);
+    if (on) { btn.setAttribute("aria-busy", "true"); btn.dataset.tooltip = "opening editor…"; }
+    else btn.removeAttribute("aria-busy");
+  };
   if (sessionStorage.getItem(TOKEN_KEY)) setTip("edit page"); // still signed in: no need to paste the token again
 
   btn.addEventListener("click", async () => {
     if (owner) { owner.toggle(); return; }  // editor running: EXIT / pencil switch edit mode
     if (busy) return;
     busy = true;
+    const tipBefore = btn.dataset.tooltip;
+    loading(true);                            // instant feedback while things load
     try {
-      const auth = await import("./auth.js");
-      // Signed in earlier in this tab: re-check that token with GitHub instead of asking again.
-      let token = sessionStorage.getItem(TOKEN_KEY) ? await auth.restoreSession() : null;
+      // The sign-in code in one round trip (auth.js would otherwise fetch these two only after it loads)
+      const [auth, gh] = await Promise.all([import("./auth.js"), import("./github.js"), import("./dialog.js")]);
+      const latest = (t) => gh.fetchRemoteData(t, CONFIG.github, CONFIG.dataPath).catch((error) => ({ error }));
+      let token = null;
+      let remote = null;
+      const saved = sessionStorage.getItem(TOKEN_KEY);
+      if (saved) {
+        remote = latest(saved);               // read the newest content while GitHub checks the token
+        token = await auth.restoreSession();
+      }
       if (!token) {
+        loading(false);
         setTip("sign in to edit");
         token = await auth.promptLogin();
+        if (!token) return;
+        loading(true);
+        remote = latest(token);
       }
-      if (token) await startOwnerMode(token);
+      // Token accepted: load the editor while the latest content is still arriving
+      const { startEditor } = await import("./editor.js");
+      owner = await startEditor({ token, remote });
     } finally {
+      loading(false);
+      if (!owner && btn.dataset.tooltip === "opening editor…") btn.dataset.tooltip = tipBefore;
       busy = false;
     }
   });

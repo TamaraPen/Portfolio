@@ -42,7 +42,7 @@ const ui = {};
  * Edit mode starts ON, so everything is editable straight away. The owner stays signed in for
  * this tab after exiting edit mode; "Log out" (in the edit-mode bar) ends the session.
  */
-export async function startEditor({ token: verifiedToken }) {
+export async function startEditor({ token: verifiedToken, remote }) {
   token = verifiedToken;
   ui.fab = document.getElementById("owner-login");
   ui.fab.classList.add("is-owner");
@@ -50,9 +50,11 @@ export async function startEditor({ token: verifiedToken }) {
 
   // Edit from the newest saved copy on GitHub, not the Pages copy (which can lag a few minutes).
   try {
-    const remote = await fetchRemoteData(token, CONFIG.github, CONFIG.dataPath);
-    if (JSON.stringify(remote) !== JSON.stringify(state.data)) {
-      state.data = remote;
+    // `remote` is the fetch main.js started in parallel; fall back to fetching it here
+    const latest = remote ? await remote : await fetchRemoteData(token, CONFIG.github, CONFIG.dataPath);
+    if (latest?.error) throw latest.error;
+    if (JSON.stringify(latest) !== JSON.stringify(state.data)) {
+      state.data = latest;
       renderAll(state.data);
       toast("Loaded the latest saved version from GitHub.");
     }

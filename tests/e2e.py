@@ -906,10 +906,17 @@ def owner_checks(b, url):
 
     def sign_in_dialog():
         b.js("document.getElementById('owner-login').click()")
+        # instant feedback: the spinner + tooltip are on synchronously, before anything has loaded
+        global CLICK_FEEDBACK
+        CLICK_FEEDBACK = b.js("(() => { const f = document.getElementById('owner-login'); return [f.classList.contains('is-loading'), f.dataset.tooltip, getComputedStyle(f, '::before').animationName]; })()")
         b.wait("document.querySelector('dialog[open] input')")
         inputs = b.js("[...document.querySelectorAll('dialog[open] input')].map(i => i.type)")
         return (inputs == ["password"], inputs)
     check("sign-in asks for a GitHub token only (single password field)", sign_in_dialog)
+    check("clicking the pencil shows a loading spinner and 'opening editor…' straight away", lambda: (
+        CLICK_FEEDBACK[0] and CLICK_FEEDBACK[1] == "opening editor…" and CLICK_FEEDBACK[2] == "fab-spin", CLICK_FEEDBACK))
+    check("the sign-in code (auth, dialog, github) loads in one round, not one after another", lambda: (lambda t: (max(t) - min(t) < 30, t))(b.js(
+        "['auth.js', 'dialog.js', 'github.js'].map(n => Math.round(performance.getEntriesByType('resource').find(e => e.name.endsWith('/js/' + n)).startTime))")))
 
     def bad_token():
         b.js("(() => { const i = document.querySelector('dialog[open] input'); i.value = 'wrong'; document.querySelector('dialog[open] .dlg__actions .btn:not(.btn--ghost)').click(); })()")
@@ -933,10 +940,15 @@ def owner_checks(b, url):
         r = b.js("""({ editing: document.body.classList.contains('editing'), bar: !!document.querySelector('.ownerbar'),
                       editable: !!document.querySelector('[contenteditable]'), tip: document.getElementById('owner-login').dataset.tooltip,
                       loaded: performance.getEntriesByType('resource').map(e => new URL(e.name).pathname).filter(p => /editor|auth|github|dialog/.test(p)) })""")
+        mock.calls.clear()
         b.js("document.getElementById('owner-login').click()")   # the owner actively asks for edit mode
         b.wait("document.body.classList.contains('editing') && document.querySelector('.ownerbar')")
         no_dialog = b.js("!document.querySelector('dialog[open]')")
-        ok = (not r["editing"] and not r["bar"] and not r["editable"] and r["tip"] == "edit page" and r["loaded"] == [] and no_dialog)
+        # the latest-content read was started alongside the token check (not after it)
+        r["parallel"] = b.js("(() => { const e = performance.getEntriesByType('resource'); const t = f => e.find(x => f(x.name))?.startTime;"
+                             " const contents = t(n => n.includes('/contents/data.json')), editor = t(n => n.endsWith('/js/editor.js'));"
+                             " return contents !== undefined && editor !== undefined && contents < editor; })()")
+        ok = (not r["editing"] and not r["bar"] and not r["editable"] and r["tip"] == "edit page" and r["loaded"] == [] and no_dialog and r["parallel"])
         return (ok, (r, no_dialog))
     check("refreshing while signed in stays in normal view; edit mode starts only when the pencil is clicked", refresh_stays_in_view_mode)
     check("pencil stays visible and keeps the owner-login id", lambda: b.js(
