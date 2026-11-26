@@ -320,7 +320,12 @@ def current_slide(b, n=0):
 class MockGitHub:
     def __init__(self):
         self.calls = []
-        self.data_json = open(os.path.join(ROOT, "data.json"), encoding="utf-8").read()
+        # The "remote" data.json the editor loads: the real file, with the first project's media and
+        # documents cleared so owner tests start from the same state whatever has been saved live.
+        data = json.load(open(os.path.join(ROOT, "data.json"), encoding="utf-8"))
+        first = next(b for sec in data["sections"] if sec["id"] == "work" for b in sec["blocks"] if b["type"] == "project")
+        first["media"], first["documents"] = [], []
+        self.data_json = json.dumps(data)
         cfg = open(os.path.join(ROOT, "config.js"), encoding="utf-8").read()
         self.config_js = re.sub(r'owner:\s*"[^"]*"', 'owner: "test-owner"', cfg)
         self.config_js = re.sub(r'repo:\s*"[^"]*"', 'repo: "test-repo"', self.config_js)
@@ -1189,7 +1194,7 @@ def owner_checks(b, url):
         exp_rows = [rows_before[1], rows_before[0]] + rows_before[2:]
         exp_blocks = [blocks_before[0], blocks_before[2], blocks_before[1]] + blocks_before[3:]
         ok = (all(lines)
-              and media_dom == [{"slides": "Slides", "embed": "Video link"}.get(t, t) for t in exp_media]
+              and media_dom == [{"image": "Image", "slides": "Slides", "video": "Video", "pdf": "PDF", "embed": "Video link"}.get(t, t) for t in exp_media]
               and rows_dom == exp_rows
               and sec_dom[:3] == ["overview", "experience", "skills"] and nav_dom[:3] == ["#overview", "#experience", "#skills"]
               and blocks_dom == exp_blocks
