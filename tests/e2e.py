@@ -536,6 +536,10 @@ def visitor_checks(b, url):
         ok = (len(bgs) == len(r) == 2 and all(v[2] == "1px" and v[3] == "solid" and v[4] == "rgb(30, 41, 59)" for v in r.values()))
         return (ok, r)
     check("pill contexts (skills, documents) have distinct tints, 1px border, slate text", pill_contexts)
+    check("each skill category has its own pastel colour (purple, green, blue, yellow)", lambda: (lambda r: (
+        r == [["rgb(246, 239, 246)", "rgb(217, 192, 217)"], ["rgb(228, 236, 230)", "rgb(179, 198, 185)"],
+              ["rgb(231, 240, 250)", "rgb(174, 203, 235)"], ["rgb(253, 244, 210)", "rgb(233, 212, 138)"]], r))(b.js(
+        "[...document.querySelectorAll('#skills .skill-group')].slice(0, 4).map(g => { const s = getComputedStyle(g.querySelector('.tag')); return [s.backgroundColor, s.borderTopColor]; })")))
 
     # --- Item 6: icon buttons
     def socials():
@@ -665,9 +669,12 @@ def visitor_checks(b, url):
     check("the project title is top-left, above the viewer", lambda: b.js(
         "(() => { const p = document.querySelector('.project'); const t = p.querySelector('.project__title').getBoundingClientRect(); const v = p.querySelector('.viewer').getBoundingClientRect();"
         " const s = p.querySelector('.project__side').getBoundingClientRect(); return t.bottom <= v.top && t.bottom <= s.top && Math.abs(t.left - v.left) < 2 && p.firstElementChild.matches('.project__title'); })()"))
-    check("viewer is at least 55% of the panel width and at least as tall as the dropdown column", lambda: (lambda r: (r[0] >= 0.55 and r[1] >= r[2] and r[1] >= 470, r))(b.js(
+    check("viewer is at least 55% of the panel width and has a set height (22rem), so images never dominate", lambda: (lambda r: (r[0] >= 0.55 and 330 <= r[1] <= 450, r))(b.js(
         "(() => { const p = document.querySelector('.project'); const st = p.querySelector('.viewer__stage').getBoundingClientRect(); const s = p.querySelector('.project__side').getBoundingClientRect();"
         " return [st.width / p.querySelector('.project__grid').getBoundingClientRect().width, st.height, s.height]; })()")))
+    check("a project with no documents still shows Overview, Tools used and What I learned", lambda: b.js(
+        "(() => { const p = document.querySelectorAll('.project')[2]; const shown = [...p.querySelectorAll('.acc')].filter(a => getComputedStyle(a).display !== 'none').map(a => a.querySelector('.acc__label').textContent);"
+        " return shown.join('|') === 'Overview|Tools used / how it was built|What I learned'; })()"))
     check("a project without media: no empty box, dropdowns span the full panel width", lambda: b.js(
         "(() => { const p = document.querySelectorAll('.project')[2]; const g = p.querySelector('.project__grid').getBoundingClientRect(); const s = p.querySelector('.project__side').getBoundingClientRect();"
         " const v = p.querySelector('.viewer'); return (!v || getComputedStyle(v).display === 'none') && Math.abs(s.width - g.width) < 1; })()"))
@@ -679,9 +686,9 @@ def visitor_checks(b, url):
         " return vis(P[0]) && !vis(P[2]) && P[0].querySelector('.accordion').nextElementSibling.matches('.acc--docs'); })()"))
     check("media never uses object-fit: cover", lambda: b.js(
         "[...document.querySelectorAll('.viewer img, .viewer video, .viewer iframe')].every(m => getComputedStyle(m).objectFit !== 'cover')"))
-    check("a portrait document is shown large (fills the viewer width or most of its 78vh height)", lambda: (lambda r: (r[0] >= 0.9 * r[1] or r[2] >= 0.7 * r[3], r))(b.js(
-        "(() => { const i = document.querySelector('[data-viewer] .viewer__slide:not([hidden]) img'); const st = i.closest('.viewer__stage').getBoundingClientRect();"
-        " const r = i.getBoundingClientRect(); return [r.width, st.width, r.height, innerHeight * 0.78]; })()")))
+    check("a portrait document fills the set-size stage (full height) without being cropped", lambda: (lambda r: (abs(r[2] - r[3]) < 2 and r[0] <= r[1] + 1 and r[4] == "contain", r))(b.js(
+        "(() => { const i = document.querySelector('[data-viewer] .viewer__slide:not([hidden]) img'); const f = i.closest('.viewer__frame').getBoundingClientRect();"
+        " const r = i.getBoundingClientRect(); return [r.width, f.width, r.height, f.height, getComputedStyle(i).objectFit]; })()")))
     check("viewer has carousel semantics and 'X of Y' slide labels", lambda: b.js(
         "(() => { const v = document.querySelector('[data-viewer]'); const s = [...v.querySelectorAll('.viewer__slide')];"
         " return v.getAttribute('role') === 'region' && v.getAttribute('aria-roledescription') === 'carousel' && !!v.getAttribute('aria-label')"
@@ -734,10 +741,10 @@ def visitor_checks(b, url):
         r = b.js("(() => { const v = document.querySelector('[data-viewer] video'); return v && [v.controls, v.autoplay, v.hasAttribute('autoplay'), v.paused, v.preload, v.hasAttribute('playsinline')]; })()")
         return (r == [True, False, False, True, "metadata", True], r)
     check("video has controls, playsinline, preload=metadata and never autoplays", video)
-    check("PDF embeds in a large iframe with an 'open full size' link", lambda: b.js(
+    check("PDF embeds in an iframe filling the viewer, with an 'open full size' link", lambda: b.js(
         "(() => { const f = document.querySelector('.viewer__pdf iframe'); const a = document.querySelector('.viewer__pdf a.viewer__open');"
         " return !!f && f.getAttribute('src').startsWith('tests/fixtures/sample.pdf') && a.getAttribute('href') === 'tests/fixtures/sample.pdf' && a.target === '_blank'"
-        " && parseFloat(getComputedStyle(f).height) >= innerHeight * 0.7; })()"))
+        " && parseFloat(getComputedStyle(f).height) >= 300; })()"))
     check("YouTube embed is allow-listed, sandboxed, with a referrer policy", lambda: b.js(
         "(() => { const f = document.querySelector('iframe.viewer__embed'); return !!f && f.src === 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ'"
         " && f.getAttribute('sandbox') === 'allow-scripts allow-same-origin allow-presentation allow-popups' && f.getAttribute('referrerpolicy') === 'strict-origin-when-cross-origin'; })()"))
@@ -751,9 +758,9 @@ def visitor_checks(b, url):
         b.js(f"{sel}.querySelector('summary').click()")
         return ((before, opened, b.js(f"{sel}.open")) == (False, True, False) and rot != "none", (before, opened, rot))
     check("accordion rows open and close (chevron rotates)", accordion)
-    check("project rows come from data (empty rows hidden); round buttons from the shared component", lambda: b.js(
+    check("project rows come from data (all rows shown, even before they have text); round buttons from the shared component", lambda: b.js(
         "(() => { const p = document.querySelector('.project'); const shown = [...p.querySelectorAll('.acc')].filter(a => getComputedStyle(a).display !== 'none').map(a => a.querySelector('.acc__label').textContent);"
-        " return shown.join('|') === 'Overview|Tools used / how it was built|View full documents' && [...p.querySelectorAll('.acc')].every(a => !a.open)"
+        " return shown.join('|') === 'Overview|Tools used / how it was built|What I learned|View full documents' && [...p.querySelectorAll('.acc')].every(a => !a.open)"
         " && p.querySelectorAll('.project__buttons > .social').length === 3; })()"))
 
     def mixed_media():
@@ -862,6 +869,8 @@ def visitor_checks(b, url):
                  " return [getComputedStyle(f).display, Math.round(r.width), Math.round(r.height)]; })()")
         return (r[0] == "none" and r[1] > 100 and r[2] >= 40, r)
     check("on phones the PDF shows an 'open full size' button instead of the in-page viewer", phone_pdf)
+    check("viewer has a smaller set height on phones (15rem)", lambda: (lambda h: (220 <= h <= 260, h))(b.js(
+        "document.querySelector('[data-viewer] .viewer__frame').getBoundingClientRect().height")))
     check("no horizontal page overflow at 390px with media", lambda: b.js("document.documentElement.scrollWidth <= innerWidth"))
     if os.environ.get("E2E_SCREENSHOTS"):
         b.goto(url)
@@ -958,6 +967,13 @@ def owner_checks(b, url):
         b.sleep(0.4)
         data = b.cmd("Page.captureScreenshot", format="png")["data"]
         open(os.path.join(os.environ["E2E_SCREENSHOTS"], "edit-mode-1200.png"), "wb").write(base64.b64decode(data))
+        for name, target in (("edit-mode-experience-1200.png", "#experience"), ("edit-mode-project-1200.png", "#work .block--project")):
+            b.js(f"document.querySelector('{target}').scrollIntoView({{behavior: 'instant'}}); window.scrollBy(0, -80)")
+            b.mouse(5, 5)
+            b.sleep(0.3)
+            data = b.cmd("Page.captureScreenshot", format="png")["data"]
+            open(os.path.join(os.environ["E2E_SCREENSHOTS"], name), "wb").write(base64.b64decode(data))
+        b.js("window.scrollTo(0, 0)")
 
     check("every text node in <main> is editable in edit mode (except editor buttons/dialogs)", lambda: (lambda bad: (not bad, bad))(b.js(f"{WALK_JS}('edit')")))
     check("editable fields have a solid (not dashed) border in edit mode", lambda: (lambda r: (all(x == ["solid", "1px"] for x in r) and len(r) > 100, len(r)))(b.js(
@@ -1016,7 +1032,7 @@ def owner_checks(b, url):
             before = b.js(f"import('/js/state.js').then(m => m.state.data.{data_path}.length)")
             b.js(f"[...document.querySelectorAll('.ed-add')].find(x => x.previousElementSibling?.matches('[data-collection=\"{container}\"]')).click()")
             b.wait(f"document.querySelectorAll('[data-collection=\"{container}\"] > [data-item]').length === {before + 1}")
-            if not b.js(f"[...document.querySelectorAll('.ed-add')].some(x => x.textContent === '{label}')"):
+            if not b.js(f"[...document.querySelectorAll('.ed-add')].some(x => x.textContent === '+ {label}')"):
                 return (False, "add button label")
             # remove the new (last) item; whole entries ask for confirmation first
             b.js(f"[...document.querySelectorAll('[data-collection=\"{container}\"] > [data-item]')].pop().querySelector(':scope > .ed-btn--danger').click()")
@@ -1156,12 +1172,12 @@ def owner_checks(b, url):
                           "document.querySelectorAll('.project')[0].querySelectorAll('.accordion > .acc')[1]"))
         rows_dom = order("[...document.querySelectorAll('.project')[0].querySelectorAll('.accordion > .acc .acc__label')].map(x => x.textContent)")
         # 3. section: Experience above Skills
-        lines.append(drag("document.querySelector('#experience > .ed-sort .ed-grip')", "document.getElementById('skills')", where="before"))
+        lines.append(drag("document.querySelector('#experience > .ed-bar .ed-grip')", "document.getElementById('skills')", where="before"))
         sec_dom = order("[...document.querySelectorAll('main > section')].map(s => s.id)")
         nav_dom = order("[...document.querySelectorAll('[data-nav] a')].map(a => a.getAttribute('href'))")
         # 4. block: first project below the second
         blocks_before = order("[...document.querySelectorAll('#work > .blocks > .block')].map(x => x.dataset.blockId)")
-        lines.append(drag("document.querySelectorAll('#work > .blocks > .block--project')[0].querySelector(':scope > .ed-sort .ed-grip')",
+        lines.append(drag("document.querySelectorAll('#work > .blocks > .block--project')[0].querySelector(':scope > .ed-bar .ed-grip')",
                           "document.querySelectorAll('#work > .blocks > .block--project')[1]"))
         blocks_dom = order("[...document.querySelectorAll('#work > .blocks > .block')].map(x => x.dataset.blockId)")
         b.viewport(1200)
@@ -1185,17 +1201,44 @@ def owner_checks(b, url):
     check("dragging (pointer events) reorders sections, blocks, media and dropdown rows in the DOM and saved JSON", drag_everything)
 
     def up_down():
-        b.js("document.querySelector('#experience > .ed-sort .ed-move[aria-label=\"Move down\"]').click()")
+        b.js("document.querySelector('#experience > .ed-bar .ed-move[aria-label=\"Move down\"]').click()")
         b.sleep(0.2)
         sec = b.js("[...document.querySelectorAll('main > section')].map(s => s.id).slice(0, 3)")
-        b.js("document.querySelectorAll('#work > .blocks > .block--project')[1].querySelector(':scope > .ed-sort .ed-move[aria-label=\"Move up\"]').click()")
+        b.js("document.querySelectorAll('#work > .blocks > .block--project')[1].querySelector(':scope > .ed-bar .ed-move[aria-label=\"Move up\"]').click()")
         b.sleep(0.2)
         blocks = b.js("[...document.querySelectorAll('#work > .blocks > .block--project')].map(x => x.dataset.blockId).slice(0, 2)")
         state_ = b.js("import('/js/state.js').then(m => [m.state.data.sections.map(s => s.id).slice(0, 2), m.state.data.sections[3].blocks.filter(x => x.type === 'project').map(x => x.id).slice(0, 2)])")
-        first_up = b.js("document.querySelector('#skills > .ed-sort .ed-move[aria-label=\"Move up\"]').disabled")
+        first_up = b.js("document.querySelector('#skills > .ed-bar .ed-move[aria-label=\"Move up\"]').disabled")
         ok = sec == ["overview", "skills", "experience"] and blocks == ["psa2025", "microbiome2025"] and state_ == [["skills", "experience"], blocks] and first_up
         return (ok, (sec, blocks, state_, first_up))
     check("up and down buttons reorder sections and blocks too", up_down)
+
+    check("edit screen is structured: each section and block has one labelled bar with one grip and one ✕", lambda: (lambda r: (r["ok"], r))(b.js("""(() => {
+        const units = [...document.querySelectorAll('main > section[data-item], .blocks > .block')];
+        const bars = units.map(u => { const bar = u.querySelector(':scope > .ed-bar'); if (!bar) return null;
+          return [bar.querySelectorAll('.ed-grip').length, bar.querySelectorAll('.ed-x').length, bar.querySelector('.ed-bar__label').textContent, bar.lastElementChild.matches('.ed-x')]; });
+        const labels = new Set(bars.filter(Boolean).map(b => b[2]));
+        return { ok: units.length > 10 && bars.every(b => b && b[0] === 1 && b[1] === 1 && b[3]) && ['Section', 'Project', 'Entry list', 'Tag list'].every(l => labels.has(l)),
+                 units: units.length, labels: [...labels] };
+      })()""")))
+
+    def quiet_until_hover():
+        b.mouse(5, 5)
+        b.js("document.activeElement?.blur(); document.querySelector('[data-block-id=\"employment\"] .entry').scrollIntoView({block: 'center', behavior: 'instant'})")
+        b.sleep(0.25)
+        state_ = lambda: b.js("""(() => { const e = document.querySelector('[data-block-id="employment"] .entry'); const blk = e.closest('.block');
+          const op = el => +getComputedStyle(el).opacity;
+          return { x: op(e.querySelector(':scope > .ed-x')), add: op(blk.querySelector('.ed-add--mini')), moves: [...document.querySelectorAll('.ed-move')].filter(m => m.getBoundingClientRect().width > 2).length,
+                   r: (() => { const r = e.querySelector(':scope > .ed-x').getBoundingClientRect(), b = e.getBoundingClientRect(); return [Math.round(r.right - b.right), Math.round(b.top - r.top), Math.round(r.width)]; })() }; })()""")
+        rest = state_()
+        x, y = center("document.querySelector('[data-block-id=\"employment\"] .entry .entry__dates')")
+        b.mouse(x, y)
+        b.sleep(0.3)
+        hover = state_()
+        b.mouse(5, 5)
+        ok = rest["x"] == 0 and rest["add"] == 0 and hover["x"] == 1 and hover["add"] == 1 and rest["moves"] == 0 and 6 <= hover["r"][0] <= 12 and 6 <= hover["r"][1] <= 12 and hover["r"][2] <= 20
+        return (ok, (rest, hover))
+    check("item controls stay hidden until you hover a box; ✕ is small and on its top-right corner", quiet_until_hover)
 
     def add_section():
         b.js("document.querySelector('main > .ed-add--section').click()")
@@ -1221,7 +1264,7 @@ def owner_checks(b, url):
     check("Add section creates a panel and a nav entry, blocks can be added, and it survives Save", add_section)
 
     def delete_section():
-        b.js("document.querySelector('#publications > .ed-sort .ed-remove').click()")
+        b.js("document.querySelector('#publications > .ed-bar .ed-remove').click()")
         b.wait("document.querySelector('dialog[open]')")
         b.js("document.querySelector('dialog[open] .dlg__actions .btn:not(.btn--ghost)').click()")
         b.wait("!document.getElementById('publications')")
@@ -1243,7 +1286,7 @@ def owner_checks(b, url):
         return (patched == 1 and not visible_bar and not f["bar"] and not f["barClass"] and f["pad"] == "0px" and not f["exit"], (patched, f))
     check("after edit, Save and exit: no owner bar and no extra bottom padding remain", save_and_exit)
     check("exiting edit mode removes every grip handle and add control", lambda: (lambda n: (n == 0, n))(b.js(
-        "document.querySelectorAll('.ed-grip, .ed-sort, .ed-move, .ed-add, .ed-tray, .ed-drop-line, .ed-btn, [data-editor-ui], [contenteditable]').length")))
+        "document.querySelectorAll('.ed-grip, .ed-sort, .ed-bar, .ed-move, .ed-add, .ed-tray, .ed-drop-line, .ed-btn, .ed-x, [data-editor-ui], [contenteditable]').length")))
 
     def logout():
         b.js("document.getElementById('owner-login').click()")   # back into edit mode, where Log out lives

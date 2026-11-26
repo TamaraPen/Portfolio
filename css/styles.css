@@ -30,6 +30,11 @@
      One shade per context, all within the plum/purple family. */
   --pill-ink: var(--ink);
   --pill-skills-bg: #F6EFF6;  --pill-skills-border: #D9C0D9;   /* plum      */
+  /* Skill groups cycle through four pastel tones (same lightness as the plum tint) */
+  --pill-purple-bg: #F6EFF6;  --pill-purple-border: #D9C0D9;   /* plum                   */
+  --pill-green-bg: #E4ECE6;   --pill-green-border: #B3C6B9;    /* CV sage (#4B6455)      */
+  --pill-blue-bg: #E7F0FA;    --pill-blue-border: #AECBEB;     /* LinkedIn blue (#0A66C2) */
+  --pill-yellow-bg: #FDF4D2;  --pill-yellow-border: #E9D48A;   /* yellow                 */
   --pill-tags-bg: #F1EDFA;    --pill-tags-border: #CDC0EA;     /* violet    */
   --pill-kind-bg: #FBEEF5;    --pill-kind-border: #E8BCD3;     /* mauve     */
   --pill-docs-bg: #EDEEF9;    --pill-docs-border: #C4C7E8;     /* lavender  */
@@ -75,7 +80,7 @@
   --exit: #C62828;
   --exit-dark: #A31F1F;
   --field-bg: #ffffff;
-  --field-border: #CBBFD0;
+  --field-border: #E2D9E6;
   --field-border-hover: #A88BAE;
   --field-ring: rgba(109, 59, 110, .22);
 
@@ -289,6 +294,10 @@ main.wrap { display: grid; gap: var(--panel-gap); padding-top: var(--panel-gap);
 
 .tags { display: flex; flex-wrap: wrap; gap: .4rem; }
 .tags[data-pill="skills"] { --pill-bg: var(--pill-skills-bg); --pill-border: var(--pill-skills-border); }
+.skill-group:nth-child(4n+1) .tags[data-pill="skills"] { --pill-bg: var(--pill-purple-bg); --pill-border: var(--pill-purple-border); }
+.skill-group:nth-child(4n+2) .tags[data-pill="skills"] { --pill-bg: var(--pill-green-bg);  --pill-border: var(--pill-green-border); }
+.skill-group:nth-child(4n+3) .tags[data-pill="skills"] { --pill-bg: var(--pill-blue-bg);   --pill-border: var(--pill-blue-border); }
+.skill-group:nth-child(4n+4) .tags[data-pill="skills"] { --pill-bg: var(--pill-yellow-bg); --pill-border: var(--pill-yellow-border); }
 .tags[data-pill="tags"]   { --pill-bg: var(--pill-tags-bg);   --pill-border: var(--pill-tags-border); }
 .tag {
   display: inline-flex; align-items: center; gap: .25rem;
@@ -372,24 +381,25 @@ main.wrap { display: grid; gap: var(--panel-gap); padding-top: var(--panel-gap);
 .acc .icon--chevron { width: 1.1rem; height: 1.1rem; flex: none; color: var(--muted); transition: transform 180ms ease; }
 .acc[open] > summary .icon--chevron { transform: rotate(180deg); }
 .acc__body { display: grid; gap: .6rem; padding: 0 1rem 1rem; }
-.acc[data-empty] { display: none; }            /* rows with no text are hidden from visitors */
 .acc[hidden] { display: none; }
 
 /* Media viewer. Media is never cropped: object-fit: contain, letterboxed on a neutral stage whose
    height follows the content up to 78vh, so a portrait page fills the height. */
-.viewer { --dots-h: 2.25rem; position: relative; min-width: 0; border-radius: 12px; }
+/* The stage has a set height (22rem desktop, 15rem phones) so images never dominate the panel;
+   everything is shown whole (contain) and opens full size in the lightbox. */
+.viewer { --dots-h: 2.25rem; --stage-h: 22rem; position: relative; min-width: 0; border-radius: 12px; }
 .viewer:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
 .viewer__stage {
-  position: relative; display: grid; place-items: center; min-height: min(30rem, 78vh); max-height: 78vh; overflow: hidden;
+  position: relative; display: grid; place-items: center; overflow: hidden;
   background: var(--viewer-bg); border: 1px solid var(--line); border-radius: 12px; touch-action: pan-y;
 }
 .viewer__slide { margin: 0; width: 100%; display: grid; justify-items: center; }
 .viewer__slide[hidden] { display: none; }
 .viewer__slide.is-current { animation: viewer-fade .25s ease; }
 @keyframes viewer-fade { from { opacity: 0; } to { opacity: 1; } }
-.viewer__frame { position: relative; width: 100%; display: grid; place-items: center; }
+.viewer__frame { position: relative; width: 100%; height: var(--stage-h); display: grid; place-items: center; }
 .viewer__frame[data-pos]::after { content: attr(data-pos); position: absolute; top: .6rem; left: .6rem; padding: .1rem .55rem; border-radius: 999px; background: var(--scrim); color: var(--on-accent); font-size: .72rem; font-weight: 600; }
-.viewer__media { display: block; max-width: 100%; width: auto; height: auto; max-height: 78vh; object-fit: contain; }
+.viewer__media { display: block; max-width: 100%; max-height: var(--stage-h); width: auto; height: auto; object-fit: contain; }
 img.viewer__media { cursor: zoom-in; }
 video.viewer__media { width: 100%; background: var(--video-bg); }
 .viewer__pdf { position: relative; width: 100%; display: grid; gap: .6rem; justify-items: end; padding: .6rem; }
@@ -400,8 +410,9 @@ video.viewer__media { width: 100%; background: var(--video-bg); }
 }
 .viewer__expand:hover, .viewer__expand:focus-visible { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .viewer__expand .icon { width: 1.1rem; height: 1.1rem; }
-.viewer__pdf iframe { width: 100%; height: calc(78vh - 4rem); min-height: 26rem; border: 0; border-radius: 8px; background: var(--surface); }
-.viewer__embed, .viewer__blocked { display: block; width: 100%; aspect-ratio: 16 / 9; border: 0; }
+.viewer__pdf { height: var(--stage-h); align-content: stretch; }
+.viewer__pdf iframe { width: 100%; height: calc(var(--stage-h) - 1.2rem); min-height: 0; border: 0; border-radius: 8px; background: var(--surface); }
+.viewer__embed, .viewer__blocked { display: block; width: 100%; height: var(--stage-h); border: 0; }
 .viewer__caption { padding: .5rem .75rem; font-size: .8rem; color: var(--muted); text-align: center; }
 .viewer__caption:empty { display: none; }
 .viewer[data-count="0"] .viewer__stage { display: none; }   /* empty viewer (edit mode): only "Add media" */
@@ -484,10 +495,10 @@ video.viewer__media { width: 100%; background: var(--video-bg); }
 @media (max-width: 760px) {
   .project { padding: 1rem; }
   .project__grid { grid-template-columns: minmax(0, 1fr); gap: 1rem; }
-  .viewer__stage { min-height: 16rem; }
+  .viewer { --stage-h: 15rem; }
   /* Phones: embedded PDFs usually show only page 1 (iOS Safari), so offer the full viewer instead */
   .viewer__pdf iframe { display: none; }
-  .viewer__pdf { justify-items: center; padding: 2.5rem 1rem; }
+  .viewer__pdf { justify-items: center; align-content: center; padding: 1rem; }
   .viewer__open { font-size: 1rem; padding: .7rem 1.2rem; }
 }
 @media (max-width: 720px) {
@@ -511,8 +522,8 @@ video.viewer__media { width: 100%; background: var(--video-bg); }
 .ownerbar__status { color: var(--ownerbar-ink); min-width: 8rem; }
 .ownerbar__status.is-dirty { color: var(--ownerbar-warn); }
 
-/* Editable fields: real field styling. The field box (white background, border, focus ring) is
-   drawn by a pseudo-element behind the text, so switching edit mode on cannot move the layout. */
+/* Editable fields: calm at rest, clear on hover, strong when typing. The field box is drawn by a
+   pseudo-element behind the text, so switching edit mode on cannot move the layout. */
 .editing .is-editable { position: relative; isolation: isolate; cursor: text; color: var(--ink); }
 .editing span.is-editable { display: inline-block; min-width: 2ch; }
 .editing .is-editable::after {
@@ -520,57 +531,112 @@ video.viewer__media { width: 100%; background: var(--video-bg); }
   background: var(--field-bg); border: 1px solid var(--field-border); border-radius: 6px;
   transition: border-color 120ms ease, box-shadow 120ms ease;
 }
-.editing .is-editable[data-multiline] { white-space: pre-wrap; min-height: 4.5rem; }
-.editing .is-editable[data-multiline]::after { inset: -.5rem -.65rem; }
+.editing .is-editable[data-multiline] { white-space: pre-wrap; min-height: 3rem; }
+.editing .is-editable[data-multiline]::after { inset: -.45rem -.6rem; }
 .editing .bio.is-editable { min-height: 9rem; }
 .editing .is-editable:hover::after { border-color: var(--field-border-hover); }
 .editing .is-editable:focus { outline: none; }
 .editing .is-editable:focus::after { border-color: var(--accent); background: var(--edit-focus-bg); box-shadow: 0 0 0 3px var(--field-ring); }
 .editing .badge.is-editable { border-style: solid; }
-.editing .is-editable:empty::before { content: "(empty)"; color: var(--faint); }
+.editing .is-editable:empty::before { content: "Click to add text"; color: var(--faint); font-style: italic; font-weight: 400; }
 .editing .entry__bullets:empty, .editing .citations:empty { display: block; }
 .editing .project__text:empty, .editing .viewer__caption:empty { display: block; }
 .editing .acc--docs { display: block; }
 .editing .viewer__caption { text-align: left; }
+.editing .block__title:empty, .editing .text-block:empty { display: block; }
 
+/* Small editor buttons */
 .ed-btn { font: 600 .72rem var(--font-body); border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 6px; padding: .12rem .5rem; cursor: pointer; line-height: 1.4; }
 .ed-btn:hover { border-color: var(--accent); color: var(--accent); }
 .ed-btn--danger:hover { border-color: var(--danger); color: var(--danger); }
-.ed-btn--corner { position: absolute; top: .5rem; right: .5rem; }
-.entry > .ed-btn--corner, .skill-group > .ed-btn--corner { top: 0; right: 0; }
-.ed-add { margin-top: .75rem; }
 .ed-inline { display: inline-flex; gap: .25rem; margin-left: .35rem; vertical-align: middle; }
 .ed-alt { display: block; margin-top: .35rem; font-size: .75rem; color: var(--muted); }
-/* Reordering: grip handles, up/down buttons, drop indicator, media strip */
+.ed-noimage { margin-right: .4rem; }
+
+/* Structure: every section and block gets one slim labelled header bar:  ⠿  LABEL ........ ✕ */
 .editing main > section[data-item] { position: relative; }
-.editing main > section[data-item] > .section__title { padding-right: 9rem; }
-.editing .block { padding-top: .25rem; }
-.editing .block--project .project__title, .editing .block > .block__title { padding-right: 9rem; }
-.editing .block__title:empty { display: block; }
-.editing .text-block:empty { display: block; }
-.editing .acc[data-empty] { display: block; }
+.editing .block { padding: .5rem .75rem .75rem; border: 1px dashed var(--line-strong); border-radius: 12px; }
+.editing .block--project { padding: 1.25rem; border-style: solid; }
+.ed-bar {
+  display: flex; align-items: center; gap: .5rem; margin: 0 0 .75rem;
+  padding-bottom: .4rem; border-bottom: 1px solid var(--line);
+  font: 700 .66rem/1 var(--font-body); letter-spacing: .09em; text-transform: uppercase; color: var(--muted);
+}
+main > section[data-item] > .ed-bar { color: var(--accent); }
+.ed-bar__label { flex: 1; }
+
+/* Add buttons: section/block/media are always visible; item-level ones are small links */
+.ed-add { margin-top: .75rem; }
+.ed-add--major { display: flex; width: 100%; justify-content: center; border-style: dashed; color: var(--accent); background: transparent; }
+.ed-add--major:hover { background: var(--accent-soft); }
+.ed-add--section { justify-self: stretch; }
+.ed-add--mini { margin-top: .35rem; padding: .1rem .2rem; border: 0; background: none; font-size: .78rem; font-weight: 600; color: var(--accent); }
+.ed-add--mini:hover { background: none; text-decoration: underline; color: var(--accent-dark); }
+
+/* Delete ✕: small, round. In a header bar it sits at the right; on other boxes it sits on the
+   box's top-right corner. */
+.ed-box { position: relative; }
+.ed-x {
+  position: absolute; z-index: 4; top: -.55rem; right: -.55rem;
+  width: 1.15rem; height: 1.15rem; padding: 0; border-radius: 50%;
+  display: grid; place-items: center; font-size: .6rem; line-height: 1;
+  background: var(--surface); color: var(--muted); border: 1px solid var(--line-strong); box-shadow: var(--shadow-sm);
+}
+.ed-x:hover, .ed-x:focus-visible { background: var(--exit); border-color: var(--exit); color: var(--on-accent); }
+.ed-x--bar { position: static; box-shadow: none; }
+.ed-x--inline { position: static; width: 1rem; height: 1rem; font-size: .55rem; margin-left: .15rem; box-shadow: none; }
+
+/* Move: one grip handle. Arrow keys work on a focused grip; ↑/↓ buttons appear only on keyboard focus. */
 .ed-sort { display: inline-flex; align-items: center; gap: .2rem; flex: none; }
-.ed-sort--corner { position: absolute; z-index: 3; top: .5rem; right: .5rem; }
-main > section[data-item] > .ed-sort--corner { top: .9rem; right: .9rem; }
-.block > .ed-sort--corner { top: 0; right: 0; }
-.block--project > .ed-sort--corner { top: .9rem; right: .9rem; }
-.acc > summary .ed-sort { margin-left: auto; }
-.ed-grip { cursor: grab; touch-action: none; font-size: .95rem; padding: .05rem .4rem; user-select: none; }
+.ed-sort--corner { position: absolute; z-index: 4; top: -.55rem; left: -.55rem; }
+.acc > summary .ed-sort { margin-right: .4rem; }
+.ed-grip {
+  width: 1.15rem; height: 1.4rem; padding: 0; border-radius: 5px; display: grid; place-items: center;
+  font-size: .75rem; line-height: 1; color: var(--muted); background: var(--surface); border: 1px solid var(--line-strong);
+  cursor: grab; touch-action: none; user-select: none;
+}
+.ed-grip:hover, .ed-grip:focus-visible { color: var(--accent); border-color: var(--accent); }
 .ed-grip:active { cursor: grabbing; }
+.ed-move { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.ed-sort:focus-within .ed-move { position: static; width: auto; height: auto; padding: .05rem .35rem; overflow: visible; clip: auto; border: 1px solid var(--line); }
 .ed-move[disabled] { opacity: .35; cursor: default; }
+
+/* Quiet until needed: item controls appear when you hover or click into their block */
+.editing .ed-reveal,
+.editing .ed-box > .ed-x:not(.ed-x--bar),
+.editing .ed-box > .ed-sort--corner,
+.editing .acc > summary .ed-sort,
+.editing .tag .ed-x--inline { opacity: 0; transition: opacity 120ms ease; }
+.editing :is(.block, .hero__body, .hero__side, footer, .topbar):is(:hover, :focus-within) .ed-reveal,
+.editing .ed-box:is(:hover, :focus-within) > .ed-x,
+.editing .ed-box:is(:hover, :focus-within) > .ed-sort--corner,
+.editing .acc:is(:hover, :focus-within) > summary .ed-sort,
+.editing .tag:is(:hover, :focus-within) .ed-x--inline,
+.editing .ed-reveal:focus-within, .editing .ed-reveal:focus { opacity: 1; }
+@media (hover: none) {   /* touch screens: no hover, so keep every control visible */
+  .editing .ed-reveal, .editing .ed-box > .ed-x, .editing .ed-box > .ed-sort--corner,
+  .editing .acc > summary .ed-sort, .editing .tag .ed-x--inline { opacity: 1; }
+}
+
+/* Dragging */
 .is-dragging { opacity: .45; }
 body.is-reordering, body.is-reordering * { cursor: grabbing !important; user-select: none; }
 .ed-drop-line { position: fixed; z-index: 80; pointer-events: none; background: var(--accent); border-radius: 3px; box-shadow: 0 0 0 3px var(--field-ring); }
 .ed-drop-line--y { height: 3px; }
 .ed-drop-line--x { width: 3px; }
-.ed-tray { display: flex; gap: .6rem; overflow-x: auto; padding: .75rem .1rem .5rem; }
-.ed-thumb { position: relative; flex: none; width: 7.5rem; display: grid; gap: .3rem; padding: .35rem; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); font-size: .72rem; }
-.ed-thumb__img, .ed-thumb__icon { width: 100%; height: 4rem; border-radius: 5px; background: var(--viewer-bg); object-fit: contain; display: grid; place-items: center; font-weight: 700; color: var(--muted); }
-.ed-thumb .ed-sort { justify-content: space-between; }
-.ed-add--section { justify-self: start; }
-.ed-noimage { margin-right: .4rem; }
+
+/* Media editing: thumbnail strip, per-slide tools */
+.ed-tray { display: flex; gap: .9rem; overflow-x: auto; padding: .9rem .7rem .5rem; }
+.ed-thumb { position: relative; flex: none; width: 6.5rem; display: grid; gap: .3rem; padding: .35rem; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); font-size: .72rem; }
+.ed-thumb__img, .ed-thumb__icon { width: 100%; height: 3.5rem; border-radius: 5px; background: var(--viewer-bg); object-fit: contain; display: grid; place-items: center; font-weight: 700; color: var(--muted); }
 .ed-media { display: flex; flex-wrap: wrap; gap: .35rem; padding: .5rem .75rem 0; width: 100%; }
 .ed-media__group { display: inline-flex; flex-wrap: wrap; gap: .25rem; }
 .viewer__slide > .ed-alt { padding: 0 .75rem; width: 100%; }
-.editing .entry__head { padding-right: 4.5rem; }
-.ed-thumb > .ed-sort--corner { position: static; justify-content: space-between; }
+/* Edit-mode tidying: separate title fields instead of separators drawn inside them, quieter optional fields */
+.editing .entry__title { display: flex; flex-wrap: wrap; gap: .45rem .9rem; }
+.editing .entry__org:not(:empty)::before, .editing .entry__place:not(:empty)::before,
+.editing .entry__org:empty + .entry__place:not(:empty)::before { content: none; }
+.editing .block__title:empty::before { content: "Optional heading"; font-size: .8rem; }
+.editing .text-block:empty { min-height: 1.6rem; }
+.editing .text-block:empty::before { content: "Optional text"; font-size: .85rem; }
+.acc__label { margin-right: auto; }

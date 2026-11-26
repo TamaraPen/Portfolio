@@ -291,7 +291,7 @@ function opensInLightbox(path) {
 }
 
 function accordionRow(a, ap) {
-  return el("details", { class: "acc", "data-item": ap, "data-empty": a.body ? null : "" },
+  return el("details", { class: "acc", "data-item": ap },
     el("summary", {}, el("span", { class: "acc__label", ...ed(`${ap}.title`) }, a.title), ICONS.chevron()),
     el("div", { class: "acc__body" }, el("p", { class: "acc__text", ...ed(`${ap}.body`, true) }, a.body)));
 }

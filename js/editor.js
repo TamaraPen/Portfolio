@@ -283,7 +283,7 @@ function makeEditable(node) {
 function decorateImage(node) {
   const path = node.dataset.img;
   const has = Boolean(getPath(state.data, path));
-  const controls = el("span", { class: "ed-inline", "data-editor-ui": "" },
+  const controls = el("span", { class: "ed-inline ed-reveal", "data-editor-ui": "" },
     button(has ? "Replace photo" : "Add photo", () => chooseImage(path)),
     has ? button("Remove", () => { setPath(state.data, path, ""); changed(); }, "ed-btn--danger") : null);
   node.after(controls);
@@ -297,7 +297,7 @@ function decorateImage(node) {
   const altPath = node.dataset.alt;
   if (has && altPath) {
     const value = el("span", { class: "ed-alt__value", "data-edit": altPath }, getPath(state.data, altPath) || "");
-    controls.after(el("span", { class: "ed-alt", "data-editor-ui": "" }, "Alt text: ", value));
+    controls.after(el("span", { class: "ed-alt ed-reveal", "data-editor-ui": "" }, "Alt text: ", value));
     makeEditable(value);
     value.addEventListener("input", () => { const img = node.querySelector("img"); if (img) img.alt = value.textContent; });
   }
@@ -322,10 +322,10 @@ async function chooseImage(path) {
 function decorateTags(ul) {
   const path = ul.dataset.tags;
   ul.querySelectorAll(":scope > li").forEach((li, i) => {
-    li.append(button("✕", () => { getPath(state.data, path).splice(i, 1); changed(); }, "ed-btn--danger"));
+    li.append(button("✕", () => { getPath(state.data, path).splice(i, 1); changed(); }, "ed-btn--danger ed-x ed-x--inline"));
     li.lastChild.setAttribute("aria-label", `Remove ${li.textContent.replace("✕", "").trim()}`);
   });
-  ul.append(el("li", {}, button("+ Add tag", async () => {
+  ul.append(el("li", { class: "ed-reveal" }, button("+ Add tag", async () => {
     const ok = await openDialog({
       title: "Add a tag",
       fields: [{ name: "text", label: "Tag text" }],
@@ -345,11 +345,12 @@ function decorateDocLinks(ul) {
   const path = ul.dataset.doclinks;
   ul.closest("details").hidden = false;
   ul.querySelectorAll(":scope > li").forEach((li, i) => {
-    const b = button("✕", () => { getPath(state.data, path).splice(i, 1); changed(); }, "ed-btn--danger");
+    const b = button("✕", () => { getPath(state.data, path).splice(i, 1); changed(); }, "ed-btn--danger ed-x");
     b.setAttribute("aria-label", "Remove document");
+    li.classList.add("ed-box");
     li.append(b);
   });
-  ul.after(el("button", { type: "button", class: "btn btn--ghost ed-add", onclick: () => addDocument(path) }, "Add document"));
+  ul.after(el("button", { type: "button", class: "btn btn--ghost ed-add ed-add--mini ed-reveal", onclick: () => addDocument(path) }, "Add document"));
 }
 
 async function addDocument(path) {
@@ -402,7 +403,7 @@ function decorateUrl(node) {
     });
     if (ok) changed();
   });
-  btn.classList.add("ed-inline");
+  btn.classList.add("ed-inline", "ed-reveal");
   node.after(btn);
 }
 
@@ -422,7 +423,7 @@ function decorateEmail(node, path) {
     });
     if (ok) changed();
   });
-  btn.classList.add("ed-inline");
+  btn.classList.add("ed-inline", "ed-reveal");
   node.after(btn);
 }
 
@@ -460,6 +461,7 @@ function newBlock(type) {
     default: throw new Error("Unknown block type");
   }
 }
+const BLOCK_LABEL = { text: "Text", project: "Project", gallery: "Gallery", entries: "Entry list", tags: "Tag list", buttons: "Icon buttons", documents: "Documents list", contact: "Contact details" };
 const slugify = (s) => s.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "section";
 
 // Adders open a dialog first; they return true when something was added.
@@ -596,20 +598,27 @@ function startDrag(e, item, container, path, axis) {
   raf = requestAnimationFrame(tick);
 }
 
-function sortControls(item, container, path, index, count, axis, remove) {
+function sortControls(item, container, path, index, count, axis) {
   const prevLabel = axis === "x" ? "Move earlier" : "Move up";
   const nextLabel = axis === "x" ? "Move later" : "Move down";
   const grip = button("⠿", null, "ed-grip");
   grip.setAttribute("aria-label", "Drag to move (or use the arrow buttons)");
   grip.title = "Drag to move";
   grip.addEventListener("pointerdown", (e) => startDrag(e, item, container, path, axis));
+  // Keyboard: arrow keys on a focused grip move the item (the ↑/↓ buttons also appear on focus)
+  grip.addEventListener("keydown", (e) => {
+    const back = axis === "x" ? "ArrowLeft" : "ArrowUp";
+    const fwd = axis === "x" ? "ArrowRight" : "ArrowDown";
+    if (e.key === back && index > 0) { e.preventDefault(); moveItem(path, index, index - 1); }
+    if (e.key === fwd && index < count - 1) { e.preventDefault(); moveItem(path, index, index + 1); }
+  });
   const up = button(axis === "x" ? "←" : "↑", () => moveItem(path, index, index - 1), "ed-move");
   const down = button(axis === "x" ? "→" : "↓", () => moveItem(path, index, index + 1), "ed-move");
   up.setAttribute("aria-label", prevLabel);
   down.setAttribute("aria-label", nextLabel);
   if (index === 0) up.disabled = true;
   if (index === count - 1) down.disabled = true;
-  return el("span", { class: "ed-sort", "data-editor-ui": "" }, grip, up, down, remove);
+  return el("span", { class: "ed-sort", "data-editor-ui": "" }, grip, up, down);
 }
 
 function decorateCollection(container) {
@@ -628,34 +637,46 @@ function decorateCollection(container) {
       getPath(state.data, path).splice(index, 1);
       changed();
     };
-    const remove = button(small ? "✕" : axis ? "✕" : "Remove", removeNow, small || axis ? "ed-btn--danger ed-remove" : "ed-btn--danger ed-btn--corner");
+    const remove = button("✕", removeNow, "ed-btn--danger ed-remove ed-x");
     remove.setAttribute("aria-label", `Remove ${itemName(value)}`);
+    remove.title = "Remove";
+    item.classList.add("ed-box");
+    if (tpl === "section" || tpl === "block") {
+      // Sections and blocks: one labelled header bar, grip on the left, ✕ on the right
+      remove.classList.add("ed-x--bar");
+      const label = tpl === "section" ? "Section" : BLOCK_LABEL[value.type] || "Block";
+      item.prepend(el("div", { class: "ed-bar", "data-editor-ui": "" },
+        sortControls(item, container, path, index, items.length, axis),
+        el("span", { class: "ed-bar__label" }, label),
+        remove));
+      return;
+    }
+    // Everything else: a small ✕ on the box's top-right corner (shown on hover / focus)
+    item.append(remove);
     if (axis) {
-      const controls = sortControls(item, container, path, index, items.length, axis, remove);
+      const controls = sortControls(item, container, path, index, items.length, axis);
       const summary = item.matches("details") ? item.querySelector(":scope > summary") : null;
-      if (summary) summary.insertBefore(controls, summary.querySelector(".icon--chevron"));
+      if (summary) summary.prepend(controls);
       else { controls.classList.add("ed-sort--corner"); item.prepend(controls); }
-    } else {
-      if (small) remove.classList.add("ed-inline");
-      item.append(remove);
     }
   });
   if ("noAdd" in container.dataset || (!adder && !template)) return;
+  const major = tpl === "section" || tpl === "block";
   const add = el("button", {
     type: "button",
-    class: `btn btn--ghost ed-add${tpl === "section" ? " ed-add--section" : ""}`,
+    class: `btn btn--ghost ed-add${tpl === "section" ? " ed-add--section" : ""}${major ? " ed-add--major" : " ed-add--mini ed-reveal"}`,
     onclick: async () => {
       if (adder) { if (await adder(path)) changed(); }
       else { getPath(state.data, path).push(template()); changed(); }
     },
-  }, container.dataset.addLabel || "Add");
+  }, `+ ${container.dataset.addLabel || "Add"}`);
   if ("addInside" in container.dataset) container.append(add); else container.after(add);
 }
 
 // "Placeholder" badges can be dismissed once the real content is in
 function decorateBadge(node) {
   const path = node.dataset.badge;
-  node.after(el("span", { class: "ed-inline", "data-editor-ui": "" }, button("Dismiss tag", () => { setPath(state.data, path, ""); changed(); })));
+  node.after(el("span", { class: "ed-inline ed-reveal", "data-editor-ui": "" }, button("Dismiss tag", () => { setPath(state.data, path, ""); changed(); })));
 }
 
 // --- Media (viewer) ------------------------------------------------------------------
@@ -669,7 +690,7 @@ function slideIndexOf(list, item, slideInDeck = 0) {
 function editableField(labelText, path) {
   const value = el("span", { class: "ed-alt__value", "data-edit": path }, getPath(state.data, path) || "");
   makeEditable(value);
-  return el("span", { class: "ed-alt", "data-editor-ui": "" }, labelText, value);
+  return el("span", { class: "ed-alt ed-reveal", "data-editor-ui": "" }, labelText, value);
 }
 
 const MEDIA_LABEL = { image: "Image", slides: "Slides", video: "Video", pdf: "PDF", embed: "Video link" };
@@ -691,7 +712,7 @@ function decorateViewer(viewer) {
     const item = list[i];
     const deckPath = slideEl.dataset.slidePath;            // only for slide-deck images
     const j = deckPath ? Number(deckPath.split(".").pop()) : 0;
-    const bar = el("div", { class: "ed-media", "data-editor-ui": "" });
+    const bar = el("div", { class: "ed-media ed-reveal", "data-editor-ui": "" });
     if (deckPath) {
       const slides = item.slides;
       const moveSlide = (to) => {
