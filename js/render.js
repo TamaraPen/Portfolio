@@ -1,23 +1,29 @@
 // Renders the page from data. Pure display code: it never writes data (apart from filling in
-// missing keys with defaults, so every editable path exists).
+// missing keys with defaults and migrating older data.json shapes, so every editable path exists).
 //
-// It marks elements with data attributes that the owner editor (editor.js, only
-// loaded after sign-in) looks for:
+// Page model (data.json v4): the Overview (profile) is pinned at the top; everything else is
+// data.sections = [{ id, title, navLabel, blocks: [...] }], rendered in order, and the nav is
+// built from that order. Block types: text, project, gallery, entries, tags, buttons,
+// documents, contact.
+//
+// Attributes the owner editor (editor.js, only loaded after sign-in and a click on the pencil)
+// looks for:
 //   data-edit="path"        editable text           (+ data-multiline for paragraphs)
 //   data-tags="path"        list of tag strings
-//   data-links="path"       list of {label,url}
 //   data-url="path"         element whose value is a URL / uploaded file path (+ data-url-kind="email")
 //   data-img="path"         image slot (+ data-alt="path" for its alt text)
-//   data-media="path"       project media viewer (list of media items; see viewer.js)
+//   data-media="path"       media viewer (list of media items; see viewer.js)
 //   data-collection="path"  list that can be added to/removed from (children have data-item;
-//                           data-template names the TEMPLATES entry used for new items)
+//                           data-template picks the template/adder; data-sortable="y|x" adds
+//                           drag handles and up/down buttons)
+//   data-doclinks="path"    a project's "View full documents" list
 //   data-badge="path"       placeholder badge text
 // Visitors get these attributes too, but without editor.js they do nothing.
 //
 // Every visible piece of text inside <main> is rendered inside a [data-edit] element, so
 // the owner can change all of it. Separators (" – ", ", ") come from CSS, not text nodes.
 
-import { el, svg, resolveUrl, initials, localMediaUrl, safeEmbedUrl } from "./util.js";
+import { el, svg, resolveUrl, initials, localMediaUrl, safeEmbedUrl, pending, uid } from "./util.js";
 
 export const RENDERED_EVENT = "portfolio:rendered";
 
@@ -27,41 +33,77 @@ function badge(path, text) {
   return text ? el("span", { class: "badge", "data-edit": path, "data-badge": path, title: "Placeholder content: replace before sharing" }, text) : null;
 }
 
-/** Pill list. `pill` names the colour context (skills | tags), see --pill-* tokens in styles.css. */
+/** Pill list. `pill` names the colour context (skills), see --pill-* tokens in styles.css. */
 const tagList = (path, items, pill) =>
   el("ul", { class: "tags", "data-tags": path, "data-pill": pill },
     items.map((t, i) => el("li", { class: "tag" }, el("span", ed(`${path}.${i}`), t))));
 
-const linkList = (path, links) =>
-  el("ul", { class: "links", "data-links": path },
-    links.map((l, j) => {
-      const href = resolveUrl(l.url);
-      return el("li", {},
-        el("a", { "data-url": `${path}.${j}.url`, href: href || null, target: "_blank", rel: "noopener noreferrer" },
-          el("span", ed(`${path}.${j}.label`), l.label)));
-    }));
-
-function heading(id, path, text, level = "h2", cls = "section__title") {
-  return el(level, { id, class: cls, ...ed(path) }, text);
-}
-
-// --- Defaults: fill in anything an older data.json lacks, so every edit path exists ---
+// --- Defaults + migration --------------------------------------------------------
 const DEFAULT_UI = {
   brand: "", viewProjects: "View projects", getInTouch: "Get in touch",
   contactEmail: "Email", contactLinkedIn: "LinkedIn", contactLocation: "Location",
-  viewProfile: "View profile", openFile: "Open file", fileMissing: "File not added yet",
-  noImage: "No media yet", footer: "", backToTop: "Back to top",
+  viewProfile: "View profile", openFile: "Open", fileMissing: "File not added yet",
+  noImage: "No image", footer: "", backToTop: "Back to top", navOverview: "Overview",
   accOverview: "Overview", accTools: "Tools used / how it was built", accLearned: "What I learned",
   accDocs: "View full documents", openFullSize: "Open PDF full size",
 };
-const DEFAULT_NAV = [
-  { id: "overview", label: "Overview" }, { id: "skills", label: "Skills" },
-  { id: "experience", label: "Experience" }, { id: "education", label: "Education" },
-  { id: "work", label: "Projects & Documents" }, { id: "contact", label: "Contact" },
-];
-const DEFAULT_HEADINGS = {
+const OLD_HEADINGS = {
   skills: "Skills", experience: "Employment", additional: "Additional experience", education: "Education",
   work: "Projects & Documents", projects: "Projects", documents: "Documents", contact: "Contact",
+};
+export const BUTTON_KINDS = ["github", "live", "document", "linkedin", "email", "cv"];
+const BUTTON_LABEL = { github: "GitHub", live: "Live link", document: "Document", linkedin: "LinkedIn", email: "Email", cv: "CV" };
+
+/** Converts the v3 shape (fixed top-level lists) into sections of blocks. Loses nothing. */
+function migrateToSections(d) {
+  const H = { ...OLD_HEADINGS, ...(d.headings || {}) };
+  const navLabel = (id, fallback) => (d.nav || []).find((n) => n.id === id)?.label || fallback;
+  d.ui.navOverview = navLabel("overview", d.ui.navOverview);
+  const entry = (x, t, o) => ({ role: x[t] || "", org: x[o] || "", place: x.place || "", dates: x.dates || "", summary: x.summary || "", bullets: x.bullets || [] });
+  const project = (p) => {
+    const media = Array.isArray(p.media) ? p.media : p.image ? [{ type: "image", src: p.image, alt: p.imageAlt || "", caption: "", poster: "" }] : [];
+    // The old meta line (event · place · date) and citations are folded into the Overview text.
+    const overview = [p.summary, p.meta, (p.citations || []).join("\n")].filter(Boolean).join("\n\n");
+    return {
+      id: p.id || uid(), type: "project", title: p.title || "",
+      media,
+      accordions: [
+        { title: d.ui.accOverview, body: overview },
+        { title: d.ui.accTools, body: p.tools || "" },
+        { title: d.ui.accLearned, body: p.learned || "" },
+      ],
+      documents: (p.links || []).map((l) => ({ label: l.label || "", url: l.url || "" })),
+      buttons: [{ kind: "github", url: p.github || "" }, { kind: "live", url: p.live || "" }, { kind: "document", url: p.document || "" }],
+    };
+  };
+  d.sections = [
+    { id: "skills", title: H.skills, navLabel: navLabel("skills", "Skills"), blocks: [
+      { id: "skill-groups", type: "tags", title: "", groups: d.skills || [] }] },
+    { id: "experience", title: H.experience, navLabel: navLabel("experience", "Experience"), blocks: [
+      { id: "employment", type: "entries", title: "", addLabel: "Add job", items: (d.experience || []).map((x) => entry(x, "role", "org")) },
+      { id: "additional", type: "entries", title: H.additional, addLabel: "Add additional experience", items: (d.additional || []).map((x) => entry(x, "role", "org")) }] },
+    { id: "education", title: H.education, navLabel: navLabel("education", "Education"), blocks: [
+      { id: "education-list", type: "entries", title: "", addLabel: "Add education", items: (d.education || []).map((x) => entry(x, "degree", "school")) }] },
+    { id: "work", title: H.work, navLabel: navLabel("work", "Projects & Documents"), blocks: [
+      { id: "projects-intro", type: "text", title: H.projects, body: "" },
+      ...(d.projects || []).map(project),
+      { id: "documents", type: "documents", title: H.documents, items: d.documents || [] }] },
+    { id: "contact", title: H.contact, navLabel: navLabel("contact", "Contact"), blocks: [
+      { id: "contact-details", type: "contact", intro: d.contact?.intro || "" }] },
+  ];
+  for (const k of ["skills", "experience", "additional", "education", "projects", "documents", "contact", "headings", "nav"]) delete d[k];
+  d.version = 4;
+}
+
+const BLOCK_DEFAULTS = {
+  text: { title: "", body: "" },
+  project: { title: "", media: [], accordions: [], documents: [], buttons: [] },
+  gallery: { title: "", media: [] },
+  entries: { title: "", items: [], addLabel: "" },
+  tags: { title: "", groups: [] },
+  buttons: { buttons: [] },
+  documents: { title: "", items: [] },
+  contact: { intro: "" },
 };
 
 export function ensureShape(d) {
@@ -69,18 +111,19 @@ export function ensureShape(d) {
   d.ui = { ...DEFAULT_UI, ...(d.ui || {}) };
   if (!d.ui.brand) d.ui.brand = d.profile.name || "";
   if (!d.ui.footer) d.ui.footer = `${d.profile.name || ""} · Biochemistry`;
-  if (!Array.isArray(d.nav) || !d.nav.length) d.nav = DEFAULT_NAV.map((n) => ({ ...n }));
-  d.headings = { ...DEFAULT_HEADINGS, ...(d.headings || {}) };
-  for (const key of ["skills", "experience", "additional", "education", "projects", "documents"]) if (!Array.isArray(d[key])) d[key] = [];
-  for (const x of [...d.experience, ...d.additional, ...d.education]) { x.bullets ||= []; x.place ??= ""; }
-  for (const p of d.projects) {
-    p.citations ||= []; p.imageAlt ??= ""; p.tags ||= []; p.links ||= [];
-    if (!Array.isArray(p.media)) p.media = p.image ? [{ type: "image", src: p.image, alt: p.imageAlt || "", caption: "", poster: "" }] : [];
-    for (const k of ["tools", "learned", "toolsPlaceholder", "learnedPlaceholder", "mediaPlaceholder", "github", "live", "document"]) p[k] ??= "";
-  }
-  for (const g of d.skills) g.items ||= [];
   for (const k of ["github", "cv", "photoAlt", "photoPlaceholder", "githubPlaceholder", "cvPlaceholder", "emailPlaceholder"]) d.profile[k] ??= "";
-  d.contact ||= { intro: "" };
+  if (!Array.isArray(d.sections)) migrateToSections(d);
+  for (const s of d.sections) {
+    s.id ||= `section-${uid()}`;
+    s.title ??= ""; s.navLabel ??= "";
+    if (!Array.isArray(s.blocks)) s.blocks = [];
+    for (const b of s.blocks) {
+      b.id ||= uid();
+      for (const [k, v] of Object.entries(BLOCK_DEFAULTS[b.type] || {})) b[k] ??= Array.isArray(v) ? [] : v;
+      for (const x of b.items || []) if (b.type === "entries") { x.bullets ||= []; x.place ??= ""; x.summary ??= ""; }
+      for (const g of b.groups || []) g.items ||= [];
+    }
+  }
   return d;
 }
 
@@ -108,10 +151,11 @@ export const ICONS = {
   chevron: () => svg("0 0 24 24", [stroke("M6 9l6 6 6-6", 2)], "icon icon--chevron"),
   prev: () => svg("0 0 24 24", [stroke("M15 5l-7 7 7 7", 2.2)]),
   next: () => svg("0 0 24 24", [stroke("M9 5l7 7-7 7", 2.2)]),
+  expand: () => svg("0 0 24 24", [stroke("M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5", 2)]),
 };
 
 /**
- * Shared round icon button (hero links and project panels). One pattern for all kinds:
+ * Shared round icon button (hero links, project panels, icon-button rows). One pattern for all:
  * pale tinted circle + coloured glyph at rest; solid colour + white glyph on hover/focus/press.
  * External links open in a new tab; mailto: does not. The href is editable via data-url.
  */
@@ -125,22 +169,27 @@ export function iconButton({ kind, label, path, href, external = true, extra = {
     "aria-label": href ? label : `${label} (not added yet)`,
     title: label,
     ...extra,
-  }, ICONS[kind]());
+  }, (ICONS[kind] || ICONS.live)());
 }
 
-// --- Sections ---------------------------------------------------------------
+/** href for a stored button value: email buttons hold a bare address; the rest a URL/upload path. */
+function buttonHref(kind, value) {
+  if (kind === "email") return value ? `mailto:${value}` : null;
+  return resolveUrl(value) || null;
+}
 
+// --- Overview (pinned at the top; holds the section nav) ---------------------------
 function overview(d) {
   const p = d.profile;
-  const photo = p.photo
-    ? el("img", { src: resolveUrl(p.photo), alt: p.photoAlt || "" })
-    : null;
+  const photo = p.photo ? el("img", { src: resolveUrl(p.photo), alt: p.photoAlt || "" }) : null;
+  const navItems = [{ id: "overview", label: d.ui.navOverview, path: "ui.navOverview" },
+    ...d.sections.map((s, i) => ({ id: s.id, label: s.navLabel || s.title, path: s.navLabel ? `sections.${i}.navLabel` : `sections.${i}.title` }))];
   const side = el("div", { class: "hero__side" },
     el("div", { class: "avatar", "data-img": "profile.photo", "data-alt": "profile.photoAlt", "data-initials": p.photo ? null : initials(p.name) }, photo),
     p.photo ? null : badge("profile.photoPlaceholder", p.photoPlaceholder),
     el("nav", { class: "side-nav", "aria-label": "Sections", "data-nav": "" },
-      el("ul", {}, d.nav.map((n, i) =>
-        el("li", {}, el("a", { href: `#${n.id}` }, el("span", ed(`nav.${i}.label`), n.label)))))));
+      el("ul", {}, navItems.map((n) =>
+        el("li", {}, el("a", { href: `#${n.id}` }, el("span", ed(n.path), n.label)))))));
 
   const body = el("div", { class: "hero__body", "data-section-box": "" },
     el("p", { class: "eyebrow", ...ed("profile.eyebrow") }, p.eyebrow),
@@ -151,63 +200,15 @@ function overview(d) {
       el("a", { class: "btn", href: "#work" }, el("span", ed("ui.viewProjects"), d.ui.viewProjects)),
       el("a", { class: "btn btn--ghost", href: "#contact" }, el("span", ed("ui.getInTouch"), d.ui.getInTouch))),
     el("div", { class: "socials" },
-      iconButton({ kind: "linkedin", label: "LinkedIn profile", path: "profile.linkedin", href: resolveUrl(p.linkedin), external: true }),
+      iconButton({ kind: "linkedin", label: "LinkedIn profile", path: "profile.linkedin", href: resolveUrl(p.linkedin) }),
       iconButton({ kind: "email", label: `Email ${p.name}`, path: "profile.email", href: p.email ? `mailto:${p.email}` : null, external: false, extra: { "data-url-kind": "email" } }),
-      iconButton({ kind: "cv", label: "CV", path: "profile.cv", href: resolveUrl(p.cv), external: true }),
-      iconButton({ kind: "github", label: "GitHub profile", path: "profile.github", href: resolveUrl(p.github), external: true })),
+      iconButton({ kind: "cv", label: "CV", path: "profile.cv", href: resolveUrl(p.cv) }),
+      iconButton({ kind: "github", label: "GitHub profile", path: "profile.github", href: resolveUrl(p.github) })),
     el("div", { class: "badges" },
       p.github ? null : badge("profile.githubPlaceholder", p.githubPlaceholder),
       p.cv ? null : badge("profile.cvPlaceholder", p.cvPlaceholder)));
 
   return [side, body];
-}
-
-function skills(d) {
-  return [
-    heading("skills-heading", "headings.skills", d.headings.skills),
-    el("div", { class: "skill-groups", "data-collection": "skills", "data-template": "skills", "data-add-label": "Add skill group" },
-      d.skills.map((g, i) =>
-        el("div", { class: "skill-group", "data-item": `skills.${i}` },
-          el("h3", ed(`skills.${i}.group`), g.group),
-          tagList(`skills.${i}.items`, g.items, "skills")))),
-  ];
-}
-
-const bulletList = (path, items) =>
-  el("ul", { class: "entry__bullets", "data-collection": path, "data-template": "bullet", "data-add-label": "Add bullet point" },
-    items.map((b, i) => el("li", { "data-item": `${path}.${i}` }, el("span", ed(`${path}.${i}`), b))));
-
-/** One CV-style entry: "Title – Organisation, Place" with dates right-aligned, then bullets. */
-function entry(base, x, titleKey, orgKey) {
-  return el("article", { class: "entry", "data-item": base },
-    el("div", { class: "entry__head" },
-      el("h3", { class: "entry__title" },
-        el("span", { class: "entry__role", ...ed(`${base}.${titleKey}`) }, x[titleKey]),
-        el("span", { class: "entry__org", ...ed(`${base}.${orgKey}`) }, x[orgKey]),
-        el("span", { class: "entry__place", ...ed(`${base}.place`) }, x.place)),
-      el("span", { class: "entry__dates", ...ed(`${base}.dates`) }, x.dates)),
-    x.summary ? el("p", { class: "entry__summary", ...ed(`${base}.summary`, true) }, x.summary) : null,
-    bulletList(`${base}.bullets`, x.bullets));
-}
-
-const entries = (path, list, template, addLabel, titleKey, orgKey) =>
-  el("div", { class: "entries", "data-collection": path, "data-template": template, "data-add-label": addLabel },
-    list.map((x, i) => entry(`${path}.${i}`, x, titleKey, orgKey)));
-
-function experience(d) {
-  return [
-    heading("experience-heading", "headings.experience", d.headings.experience),
-    entries("experience", d.experience, "entry", "Add job", "role", "org"),
-    heading("additional-heading", "headings.additional", d.headings.additional, "h3", "section__sub"),
-    entries("additional", d.additional, "entry", "Add additional experience", "role", "org"),
-  ];
-}
-
-function education(d) {
-  return [
-    heading("education-heading", "headings.education", d.headings.education),
-    entries("education", d.education, "education", "Add education", "degree", "school"),
-  ];
 }
 
 // --- Project media viewer -------------------------------------------------------
@@ -238,8 +239,9 @@ function mediaSlides(p, b, ui) {
       }), m.caption));
     } else if (m.type === "pdf") {
       const src = localMediaUrl(m.src);
-      out.push(slide(ip, el("div", { class: "viewer__pdf" },
+      out.push(slide(ip, el("div", { class: "viewer__pdf", "data-pdf-src": src || null, "data-pdf-title": label },
         src ? el("iframe", { src: `${src}#view=FitH`, title: label, loading: "lazy" }) : null,
+        src ? el("button", { type: "button", class: "viewer__expand", "data-lightbox-open": "", "aria-label": `Open ${label} full screen` }, ICONS.expand()) : null,
         el("a", { class: "viewer__open btn btn--ghost", href: src || null, target: "_blank", rel: "noopener noreferrer" }, el("span", ed("ui.openFullSize"), ui.openFullSize))), m.caption));
     } else if (m.type === "embed") {
       const src = safeEmbedUrl(m.src);
@@ -256,6 +258,8 @@ function mediaSlides(p, b, ui) {
   return out;
 }
 
+/** Media viewer for a project or gallery block. Not shown at all when there is no media
+ *  (the editor reveals it in edit mode with just an "Add media" button). */
 function viewer(p, b, ui) {
   const slides = mediaSlides(p, b, ui);
   const n = slides.length;
@@ -265,110 +269,191 @@ function viewer(p, b, ui) {
   });
   const navBtn = (dir) => el("button", { type: "button", class: `viewer__nav viewer__nav--${dir}`, "data-viewer-step": dir === "prev" ? "-1" : "1", "aria-label": dir === "prev" ? "Previous slide" : "Next slide" }, ICONS[dir]());
   return el("div", {
-    class: "viewer", role: "region", "aria-roledescription": "carousel", "aria-label": `Media: ${p.title}`,
+    class: "viewer", role: "region", "aria-roledescription": "carousel", "aria-label": `Media: ${p.title || "gallery"}`,
     "data-viewer": "", "data-media": `${b}.media`, "data-count": n, tabindex: n > 1 ? "0" : null,
-    hidden: n || p.mediaPlaceholder ? null : "",
+    hidden: n ? null : "",
   },
-    el("div", { class: "viewer__stage", "aria-live": "polite" },
-      n ? slides : el("div", { class: "viewer__empty" }, badge(`${b}.mediaPlaceholder`, p.mediaPlaceholder))),
+    el("div", { class: "viewer__stage", "aria-live": "polite" }, slides),
     n > 1 ? [navBtn("prev"), navBtn("next"),
       el("div", { class: "viewer__dots" }, slides.map((_, k) =>
         el("button", { type: "button", class: "viewer__dot", "data-viewer-go": k, "aria-label": `Show slide ${k + 1} of ${n}`, "aria-current": k === 0 ? "true" : null })))] : null);
 }
 
-function accordionRow(key, labelKey, ui, open, ...body) {
-  return el("details", { class: `acc acc--${key}`, open: open ? "" : null },
-    el("summary", {}, el("span", { class: "acc__label", ...ed(`ui.${labelKey}`) }, ui[labelKey]), ICONS.chevron()),
-    el("div", { class: "acc__body" }, body));
+// --- Blocks ----------------------------------------------------------------------
+function blockTitle(b, bp, cls = "section__sub") {
+  return el("h3", { id: `${b.id}-heading`, class: `${cls} block__title`, ...ed(`${bp}.title`) }, b.title || "");
 }
 
-function projectCard(p, i, ui) {
-  const b = `projects.${i}`;
-  return el("article", { class: "project", "data-item": b },
-    viewer(p, b, ui),
-    el("div", { class: "project__body" },
-      el("p", { class: "chip", "data-pill": "kind", ...ed(`${b}.kind`) }, p.kind),
-      el("h3", { class: "project__title", ...ed(`${b}.title`) }, p.title),
-      el("p", { class: "project__meta", ...ed(`${b}.meta`) }, p.meta),
-      tagList(`${b}.tags`, p.tags, "tags"),
-      el("div", { class: "accordion" },
-        accordionRow("overview", "accOverview", ui, true,
-          el("p", { class: "project__summary", ...ed(`${b}.summary`, true) }, p.summary),
-          el("ul", { class: "citations", "data-collection": `${b}.citations`, "data-template": "citation", "data-add-label": "Add citation" },
-            p.citations.map((c, j) => el("li", { "data-item": `${b}.citations.${j}` }, el("span", ed(`${b}.citations.${j}`), c))))),
-        accordionRow("tools", "accTools", ui, false,
-          el("p", { class: "project__text", ...ed(`${b}.tools`, true) }, p.tools),
-          badge(`${b}.toolsPlaceholder`, p.toolsPlaceholder)),
-        accordionRow("learned", "accLearned", ui, false,
-          el("p", { class: "project__text", ...ed(`${b}.learned`, true) }, p.learned),
-          badge(`${b}.learnedPlaceholder`, p.learnedPlaceholder)),
-        accordionRow("docs", "accDocs", ui, false, linkList(`${b}.links`, p.links))),
-      el("div", { class: "socials project__buttons" },
-        iconButton({ kind: "github", label: `GitHub repository: ${p.title}`, path: `${b}.github`, href: resolveUrl(p.github) }),
-        iconButton({ kind: "live", label: `Live link: ${p.title}`, path: `${b}.live`, href: resolveUrl(p.live) }),
-        iconButton({ kind: "document", label: `Document: ${p.title}`, path: `${b}.document`, href: resolveUrl(p.document) })),
-      badge(`${b}.placeholder`, p.placeholder)));
+const LIGHTBOX_EXT = /\.(pdf|png|jpe?g|webp|gif)$/i;
+function opensInLightbox(path) {
+  if (pending.has(path)) return LIGHTBOX_EXT.test(pending.get(path).file.name);
+  return LIGHTBOX_EXT.test(String(path || "").split(/[?#]/)[0]);
 }
 
-function docRow(x, i, ui) {
-  const b = `documents.${i}`;
+function accordionRow(a, ap) {
+  return el("details", { class: "acc", "data-item": ap, "data-empty": a.body ? null : "" },
+    el("summary", {}, el("span", { class: "acc__label", ...ed(`${ap}.title`) }, a.title), ICONS.chevron()),
+    el("div", { class: "acc__body" }, el("p", { class: "acc__text", ...ed(`${ap}.body`, true) }, a.body)));
+}
+
+/** "View full documents": last dropdown row; only shown to visitors when there are documents. */
+function documentsRow(p, bp, ui) {
+  return el("details", { class: "acc acc--docs", hidden: p.documents.length ? null : "" },
+    el("summary", {}, el("span", { class: "acc__label", ...ed("ui.accDocs") }, ui.accDocs), ICONS.chevron()),
+    el("div", { class: "acc__body" },
+      el("ul", { class: "doclinks", "data-doclinks": `${bp}.documents` }, p.documents.map((x, k) => {
+        const dp = `${bp}.documents.${k}`;
+        const href = resolveUrl(x.url);
+        return el("li", { class: "doclink", "data-item": dp },
+          el("span", { class: "doclink__label", ...ed(`${dp}.label`) }, x.label),
+          href
+            ? el("a", { class: "btn btn--ghost doclink__open", href, target: "_blank", rel: "noopener noreferrer", "data-url": `${dp}.url`,
+              "data-doc-lightbox": opensInLightbox(x.url) ? (/\.pdf$/i.test(pending.get(x.url)?.file.name || x.url) ? "pdf" : "image") : null,
+              "data-doc-title": x.label }, el("span", ed("ui.openFile"), ui.openFile))
+            : el("span", { class: "doclink__open muted", "data-url": `${dp}.url` }, el("span", ed("ui.fileMissing"), ui.fileMissing)));
+      }))));
+}
+
+function buttonRow(buttons, bp, title, extraClass = "") {
+  return el("div", { class: `socials ${extraClass}`.trim() }, buttons.map((b, k) =>
+    iconButton({ kind: b.kind, label: `${BUTTON_LABEL[b.kind] || "Link"}${title ? `: ${title}` : ""}`, path: `${bp}.buttons.${k}.url`,
+      href: buttonHref(b.kind, b.url), external: b.kind !== "email", extra: b.kind === "email" ? { "data-url-kind": "email" } : {} })));
+}
+
+// Project: title on top; media viewer left (~58%) and dropdown rows right; rows span the full
+// width when there is no media. Nothing else is shown in a project panel.
+function projectBlock(p, bp, d) {
+  return el("article", { class: `project${p.media.length ? "" : " project--no-media"}` },
+    el("h3", { id: `${p.id}-heading`, class: "project__title", ...ed(`${bp}.title`) }, p.title),
+    el("div", { class: "project__grid" },
+      viewer(p, bp, d.ui),
+      el("div", { class: "project__side" },
+        el("div", { class: "accordion", "data-collection": `${bp}.accordions`, "data-template": "accordion", "data-sortable": "y", "data-add-label": "Add dropdown row" },
+          p.accordions.map((a, k) => accordionRow(a, `${bp}.accordions.${k}`))),
+        documentsRow(p, bp, d.ui),
+        buttonRow(p.buttons, bp, p.title, "project__buttons"))));
+}
+
+function textBlock(b, bp) {
+  return el("div", {}, blockTitle(b, bp), el("p", { class: "text-block", ...ed(`${bp}.body`, true) }, b.body));
+}
+
+function galleryBlock(b, bp, d) {
+  return el("div", { class: `gallery${b.media.length ? "" : " gallery--empty"}` }, blockTitle(b, bp), viewer(b, bp, d.ui));
+}
+
+/** One CV-style entry: "Title – Organisation, Place" with dates right-aligned, then bullets. */
+function entry(base, x) {
+  return el("article", { class: "entry", "data-item": base },
+    el("div", { class: "entry__head" },
+      el("h4", { class: "entry__title" },
+        el("span", { class: "entry__role", ...ed(`${base}.role`) }, x.role),
+        el("span", { class: "entry__org", ...ed(`${base}.org`) }, x.org),
+        el("span", { class: "entry__place", ...ed(`${base}.place`) }, x.place)),
+      el("span", { class: "entry__dates", ...ed(`${base}.dates`) }, x.dates)),
+    x.summary ? el("p", { class: "entry__summary", ...ed(`${base}.summary`, true) }, x.summary) : null,
+    el("ul", { class: "entry__bullets", "data-collection": `${base}.bullets`, "data-template": "bullet", "data-add-label": "Add bullet point" },
+      x.bullets.map((t, i) => el("li", { "data-item": `${base}.bullets.${i}` }, el("span", ed(`${base}.bullets.${i}`), t)))));
+}
+
+function entriesBlock(b, bp) {
+  return el("div", {}, blockTitle(b, bp),
+    el("div", { class: "entries", "data-collection": `${bp}.items`, "data-template": "entry", "data-add-label": b.addLabel || "Add entry" },
+      b.items.map((x, i) => entry(`${bp}.items.${i}`, x))));
+}
+
+function tagsBlock(b, bp) {
+  return el("div", {}, blockTitle(b, bp),
+    el("div", { class: "skill-groups", "data-collection": `${bp}.groups`, "data-template": "skills", "data-add-label": "Add skill group" },
+      b.groups.map((g, i) => el("div", { class: "skill-group", "data-item": `${bp}.groups.${i}` },
+        el("h4", ed(`${bp}.groups.${i}.group`), g.group),
+        tagList(`${bp}.groups.${i}.items`, g.items, "skills")))));
+}
+
+function buttonsBlock(b, bp) {
+  return el("div", { class: "socials icon-row", "data-collection": `${bp}.buttons`, "data-template": "button", "data-add-label": "Add icon button" },
+    b.buttons.map((x, k) => el("span", { class: "icon-row__item", "data-item": `${bp}.buttons.${k}` },
+      iconButton({ kind: x.kind, label: BUTTON_LABEL[x.kind] || "Link", path: `${bp}.buttons.${k}.url`, href: buttonHref(x.kind, x.url),
+        external: x.kind !== "email", extra: x.kind === "email" ? { "data-url-kind": "email" } : {} }))));
+}
+
+function docRow(x, dp, ui) {
   const href = resolveUrl(x.url);
-  return el("li", { class: "card doc", "data-item": b },
-    el("span", { class: "doc__kind", "data-pill": "docs", ...ed(`${b}.kind`) }, x.kind),
+  return el("li", { class: "card doc", "data-item": dp },
+    el("span", { class: "doc__kind", "data-pill": "docs", ...ed(`${dp}.kind`) }, x.kind),
     el("div", {},
-      el("p", { class: "doc__title", ...ed(`${b}.title`) }, x.title),
-      el("p", { class: "doc__note", ...ed(`${b}.note`) }, x.note),
-      badge(`${b}.placeholder`, x.placeholder)),
+      el("p", { class: "doc__title", ...ed(`${dp}.title`) }, x.title),
+      el("p", { class: "doc__note", ...ed(`${dp}.note`) }, x.note),
+      badge(`${dp}.placeholder`, x.placeholder)),
     href
-      ? el("a", { class: "doc__action", "data-url": `${b}.url`, href, target: "_blank", rel: "noopener noreferrer" }, el("span", ed("ui.openFile"), ui.openFile))
-      : el("span", { class: "doc__action muted", "data-url": `${b}.url` }, el("span", ed("ui.fileMissing"), ui.fileMissing)));
+      ? el("a", { class: "doc__action", "data-url": `${dp}.url`, href, target: "_blank", rel: "noopener noreferrer" }, el("span", ed("ui.openFile"), ui.openFile))
+      : el("span", { class: "doc__action muted", "data-url": `${dp}.url` }, el("span", ed("ui.fileMissing"), ui.fileMissing)));
 }
 
-function work(d) {
-  return [
-    heading("work-heading", "headings.work", d.headings.work),
-    heading("projects-heading", "headings.projects", d.headings.projects, "h3", "section__sub"),
-    el("div", { class: "projects", "data-collection": "projects", "data-add-label": "Add project" }, d.projects.map((p, i) => projectCard(p, i, d.ui))),
-    el("div", { class: "docs-wrap" },
-      heading("documents-heading", "headings.documents", d.headings.documents, "h3", "section__sub"),
-      el("ul", { class: "docs", "data-collection": "documents", "data-add-label": "Add document" }, d.documents.map((x, i) => docRow(x, i, d.ui)))),
-  ];
+function documentsBlock(b, bp, d) {
+  return el("div", { class: "docs-wrap" }, blockTitle(b, bp),
+    el("ul", { class: "docs", "data-collection": `${bp}.items`, "data-template": "documents", "data-add-label": "Add document" },
+      b.items.map((x, i) => docRow(x, `${bp}.items.${i}`, d.ui))));
 }
 
-function contact(d) {
+function contactBlock(b, bp, d) {
   const p = d.profile;
   const mail = p.email ? `mailto:${p.email}` : null;
-  return [
-    heading("contact-heading", "headings.contact", d.headings.contact),
-    el("div", { class: "contact" },
-      el("p", { class: "contact__intro", ...ed("contact.intro", true) }, d.contact.intro),
-      el("p", { class: "contact__row" },
-        el("span", { class: "contact__label", ...ed("ui.contactEmail") }, d.ui.contactEmail),
-        el("a", { href: mail, "data-email": "1" }, el("span", ed("profile.email"), p.email)),
-        badge("profile.emailPlaceholder", p.emailPlaceholder)),
-      el("p", { class: "contact__row" },
-        el("span", { class: "contact__label", ...ed("ui.contactLinkedIn") }, d.ui.contactLinkedIn),
-        el("a", { "data-url": "profile.linkedin", href: resolveUrl(p.linkedin) || null, target: "_blank", rel: "noopener noreferrer" },
-          el("span", ed("ui.viewProfile"), d.ui.viewProfile))),
-      el("p", { class: "contact__row" },
-        el("span", { class: "contact__label", ...ed("ui.contactLocation") }, d.ui.contactLocation),
-        el("span", ed("profile.location"), p.location))),
-  ];
+  return el("div", { class: "contact" },
+    el("p", { class: "contact__intro", ...ed(`${bp}.intro`, true) }, b.intro),
+    el("p", { class: "contact__row" },
+      el("span", { class: "contact__label", ...ed("ui.contactEmail") }, d.ui.contactEmail),
+      el("a", { href: mail, "data-email": "1" }, el("span", ed("profile.email"), p.email)),
+      badge("profile.emailPlaceholder", p.emailPlaceholder)),
+    el("p", { class: "contact__row" },
+      el("span", { class: "contact__label", ...ed("ui.contactLinkedIn") }, d.ui.contactLinkedIn),
+      el("a", { "data-url": "profile.linkedin", href: resolveUrl(p.linkedin) || null, target: "_blank", rel: "noopener noreferrer" },
+        el("span", ed("ui.viewProfile"), d.ui.viewProfile))),
+    el("p", { class: "contact__row" },
+      el("span", { class: "contact__label", ...ed("ui.contactLocation") }, d.ui.contactLocation),
+      el("span", ed("profile.location"), p.location)));
+}
+
+const BLOCKS = {
+  text: textBlock, project: projectBlock, gallery: galleryBlock, entries: entriesBlock,
+  tags: tagsBlock, buttons: buttonsBlock, documents: documentsBlock, contact: contactBlock,
+};
+
+function block(b, bp, d) {
+  const build = BLOCKS[b.type];
+  if (!build) return null;
+  const node = build(b, bp, d);
+  node.classList.add("block", `block--${b.type}`);
+  node.setAttribute("data-item", bp);
+  node.setAttribute("data-block-id", b.id);
+  return node;
+}
+
+function section(s, i, d) {
+  const sp = `sections.${i}`;
+  return el("section", { id: s.id, class: "section", "data-item": sp, "aria-labelledby": `${s.id}-heading` },
+    el("h2", { id: `${s.id}-heading`, class: "section__title", ...ed(`${sp}.title`) }, s.title),
+    el("div", { class: "blocks", "data-collection": `${sp}.blocks`, "data-template": "block", "data-sortable": "y", "data-add-label": "Add block" },
+      s.blocks.map((b, j) => block(b, `${sp}.blocks.${j}`, d))));
 }
 
 // --- Public API -------------------------------------------------------------
-const SECTIONS = { overview, skills, experience, education, work, contact };
-
 export function renderAll(data) {
   ensureShape(data);
   document.title = `${data.profile.name} — Biochemistry Portfolio`;
-  for (const [id, build] of Object.entries(SECTIONS)) {
-    const section = document.getElementById(id);
-    if (!section) continue;
-    section.replaceChildren(...build(data).flat());
-    const h = section.querySelector("h1, h2");
-    if (h) section.setAttribute("aria-labelledby", h.id);
-  }
+  const ov = document.getElementById("overview");
+  ov.replaceChildren(...overview(data));
+  ov.setAttribute("aria-labelledby", "overview-heading");
+
+  const main = document.getElementById("main");
+  // Remove everything except the pinned Overview (generated sections and any editor controls)
+  [...main.children].forEach((c) => { if (c.id !== "overview") c.remove(); });
+  main.append(...data.sections.map((s, i) => section(s, i, data)));
+  // The sections list itself is sortable in edit mode (Overview stays pinned: it has no data-item).
+  Object.entries({ "data-collection": "sections", "data-template": "section", "data-sortable": "y", "data-add-label": "Add section", "data-add-inside": "" })
+    .forEach(([k, v]) => main.setAttribute(k, v));
+  main.style.setProperty("--rows", String(data.sections.length + 1)); // CSSOM, not a style attribute: CSP-safe
+
   document.getElementById("brand-slot").replaceChildren(
     el("a", { class: "brand", href: "#top", id: "brand" }, el("span", ed("ui.brand"), data.ui.brand)));
   document.getElementById("footer-slot").replaceChildren(

@@ -268,12 +268,15 @@ WALK_JS = r"""(mode => {
 # Sample media (test fixtures, never saved): a portrait page, a 2-slide deck, a video, a PDF, embeds.
 INJECT_MEDIA = """Promise.all([import('/js/render.js'), import('/js/state.js')]).then(([r, s]) => {
   const d = s.state.data;
-  d.projects[0].media = [
+  const P = d.sections.find((x) => x.id === 'work').blocks.filter((b) => b.type === 'project');
+  P[0].accordions[1].body = 'Cell culture, plate assays, R and Tableau.';
+  P[0].documents = [{ label: 'Poster (PDF)', url: 'tests/fixtures/sample.pdf' }, { label: 'Poster page (image)', url: 'tests/fixtures/portrait-page.png' }];
+  P[0].media = [
     { type: 'image', src: 'tests/fixtures/portrait-page.png', alt: 'Poster page', caption: 'Portrait document', poster: '' },
     { type: 'slides', src: '', alt: '', caption: 'Talk slides', poster: '', slides: [
       { src: 'tests/fixtures/slide-1.png', alt: 'Slide one' }, { src: 'tests/fixtures/slide-2.png', alt: 'Slide two' }] },
   ];
-  d.projects[1].media = [
+  P[1].media = [
     { type: 'video', src: '', alt: 'Lab walkthrough', caption: 'Video', poster: '' },
     { type: 'pdf', src: 'tests/fixtures/sample.pdf', alt: 'Sample PDF', caption: 'PDF', poster: '' },
     { type: 'embed', src: 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ', alt: 'Talk recording', caption: '', poster: '' },
@@ -527,13 +530,12 @@ def visitor_checks(b, url):
         r = b.js("""(() => {
           const pick = sel => { const p = document.querySelector(sel); const s = getComputedStyle(p);
             return [s.backgroundColor, s.borderTopColor, s.borderTopWidth, s.borderTopStyle, s.color]; };
-          return { skills: pick('[data-pill="skills"] .tag'), tags: pick('[data-pill="tags"] .tag'),
-                   kind: pick('.chip[data-pill="kind"]'), docs: pick('.doc__kind[data-pill="docs"]') };
+          return { skills: pick('[data-pill="skills"] .tag'), docs: pick('.doc__kind[data-pill="docs"]') };
         })()""")
         bgs = {v[0] for v in r.values()}
-        ok = (len(bgs) == 4 and all(v[2] == "1px" and v[3] == "solid" and v[4] == "rgb(30, 41, 59)" for v in r.values()))
+        ok = (len(bgs) == len(r) == 2 and all(v[2] == "1px" and v[3] == "solid" and v[4] == "rgb(30, 41, 59)" for v in r.values()))
         return (ok, r)
-    check("four pill contexts with distinct tints, 1px border, slate text", pill_contexts)
+    check("pill contexts (skills, documents) have distinct tints, 1px border, slate text", pill_contexts)
 
     # --- Item 6: icon buttons
     def socials():
@@ -589,7 +591,7 @@ def visitor_checks(b, url):
     check("employment entries match the CV", lambda: (lambda got: (got == [
         ["Research Scholar", "Koci Laboratory, NCSU", "USA"], ["Team Leader", "Ole & Steen", "UK"],
         ["Swim Teacher & Lifeguard", "Everyone Active & Fun Flippers", "UK"]], got))(
-        b.js("[...document.querySelectorAll('[data-collection=\"experience\"] > .entry')].map(e => [...e.querySelectorAll('.entry__title > span')].map(s => s.textContent))")))
+        b.js("[...document.querySelectorAll('[data-block-id=\"employment\"] .entries > .entry')].map(e => [...e.querySelectorAll('.entry__title > span')].map(s => s.textContent))")))
     check("entry titles read 'Title – Organisation, Place' (separators from CSS)", lambda: b.js(
         "(() => { const e = document.querySelector('#experience .entry'); const b = (s, p) => getComputedStyle(e.querySelector(s), p).content;"
         " return b('.entry__org', '::before') === '\" – \"' &&b('.entry__place', '::before') === '\", \"'; })()"))
@@ -598,17 +600,17 @@ def visitor_checks(b, url):
         " const d = e.querySelector('.entry__dates').getBoundingClientRect(); const t = e.querySelector('.entry__title').getBoundingClientRect();"
         " return Math.abs(d.right - h.right) < 1 && d.top < t.bottom; })"))
     check("Additional experience lists MARS Work Experience", lambda: b.js(
-        "(() => { const h = document.getElementById('additional-heading'); const e = document.querySelector('[data-collection=\"additional\"] .entry');"
+        "(() => { const h = document.getElementById('additional-heading'); const e = document.querySelector('[data-block-id=\"additional\"] .entry');"
         " return /additional experience/i.test(h.textContent) && e.querySelector('.entry__role').textContent === 'MARS Work Experience' && e.querySelectorAll('.entry__bullets li').length === 2; })()"))
     check("Education panel: BSc (Hons) Biochemistry – University of Surrey with CV bullets and dissertation", lambda: b.js(
         "(() => { const e = document.querySelector('#education .entry'); const lis = [...e.querySelectorAll('.entry__bullets li')].map(l => l.textContent);"
         " return document.getElementById('education-heading').textContent === 'Education' && e.querySelector('.entry__role').textContent === 'BSc (Hons) Biochemistry'"
         " && e.querySelector('.entry__org').textContent === 'University of Surrey' && lis.length === 5 && lis.some(t => t.startsWith('Dissertation (Grant Proposal)')); })()"))
     check("CV key skills line is skills data", lambda: b.js(
-        "(() => { const g = document.querySelector('[data-item=\"skills.0\"]'); const items = [...g.querySelectorAll('.tag')].map(t => t.textContent);"
-        " return g.querySelector('h3').textContent === 'Key skills' && ['Leadership','Research','Organisation','Time Management','Team Collaboration','Adaptability','Communication'].every(s => items.includes(s)); })()"))
-    check("conference abstract citations on the matching project cards", lambda: b.js(
-        "(() => { const c = i => document.querySelector(`[data-item=\"projects.${i}\"] .citations`).textContent;"
+        "(() => { const g = document.querySelector('[data-block-id=\"skill-groups\"] .skill-group'); const items = [...g.querySelectorAll('.tag')].map(t => t.textContent);"
+        " return g.querySelector('h4').textContent === 'Key skills' && ['Leadership','Research','Organisation','Time Management','Team Collaboration','Adaptability','Communication'].every(s => items.includes(s)); })()"))
+    check("conference abstract citations on the matching project cards (in the Overview row)", lambda: b.js(
+        "(() => { const c = i => document.querySelectorAll('.project')[i].querySelector('.acc__text').textContent;"
         " return c(0).includes('Abstract 423P, p. 194') && c(0).includes('Abstract 3, p. 5') && c(2).includes('Abstract P062, p. 64'); })()"))
     check("contact email is the CV address", lambda: b.js("document.querySelector('#contact [data-email] span').textContent") == "tamaraapen02@gmail.com")
 
@@ -655,11 +657,26 @@ def visitor_checks(b, url):
 
     # --- Section E: projects, media viewer, lightbox
     b.js(INJECT_MEDIA)
-    check("project layout is two columns at 1200px (viewer left, text right)", lambda: b.js(
-        "(() => { const p = document.querySelector('.project'); const v = p.querySelector('.viewer').getBoundingClientRect(); const t = p.querySelector('.project__body').getBoundingClientRect();"
-        " const w = p.getBoundingClientRect().width; return t.left >= v.right && Math.abs(v.top - t.top) < 2 && v.width / w > 0.5 && v.width / w < 0.62; })()"))
+    check("project layout is two columns at 1200px (viewer left, dropdowns right)", lambda: b.js(
+        "(() => { const p = document.querySelector('.project'); const v = p.querySelector('.viewer').getBoundingClientRect(); const t = p.querySelector('.project__side').getBoundingClientRect();"
+        " const w = p.querySelector('.project__grid').getBoundingClientRect().width; return t.left >= v.right && Math.abs(v.top - t.top) < 2 && v.width / w >= 0.55 && v.width / w < 0.62; })()"))
     check("projects are stacked full-width panels", lambda: b.js(
-        "(() => { const r = [...document.querySelectorAll('.projects > .project')].map(p => p.getBoundingClientRect()); return r.length === 6 && r.every((x, i) => i === 0 || (x.top > r[i-1].bottom && Math.abs(x.width - r[0].width) < 1)); })()"))
+        "(() => { const r = [...document.querySelectorAll('#work .block--project')].map(p => p.getBoundingClientRect()); return r.length === 5 && r.every((x, i) => i === 0 || (x.top > r[i-1].bottom && Math.abs(x.width - r[0].width) < 1)); })()"))
+    check("the project title is top-left, above the viewer", lambda: b.js(
+        "(() => { const p = document.querySelector('.project'); const t = p.querySelector('.project__title').getBoundingClientRect(); const v = p.querySelector('.viewer').getBoundingClientRect();"
+        " const s = p.querySelector('.project__side').getBoundingClientRect(); return t.bottom <= v.top && t.bottom <= s.top && Math.abs(t.left - v.left) < 2 && p.firstElementChild.matches('.project__title'); })()"))
+    check("viewer is at least 55% of the panel width and at least as tall as the dropdown column", lambda: (lambda r: (r[0] >= 0.55 and r[1] >= r[2] and r[1] >= 470, r))(b.js(
+        "(() => { const p = document.querySelector('.project'); const st = p.querySelector('.viewer__stage').getBoundingClientRect(); const s = p.querySelector('.project__side').getBoundingClientRect();"
+        " return [st.width / p.querySelector('.project__grid').getBoundingClientRect().width, st.height, s.height]; })()")))
+    check("a project without media: no empty box, dropdowns span the full panel width", lambda: b.js(
+        "(() => { const p = document.querySelectorAll('.project')[2]; const g = p.querySelector('.project__grid').getBoundingClientRect(); const s = p.querySelector('.project__side').getBoundingClientRect();"
+        " const v = p.querySelector('.viewer'); return (!v || getComputedStyle(v).display === 'none') && Math.abs(s.width - g.width) < 1; })()"))
+    check("no category chip, tag pill, meta line or placeholder badge inside project panels", lambda: b.js(
+        "document.querySelectorAll('.project .chip, .project .tag, .project .tags, .project .project__meta, .project .badge, .project [data-badge], .project .citations').length === 0"))
+    check("all dropdown rows start closed", lambda: b.js("[...document.querySelectorAll('main details')].every(d => !d.open) && document.querySelectorAll('main details').length > 5"))
+    check("'View full documents' shows only when a project has documents", lambda: b.js(
+        "(() => { const vis = p => { const d = p.querySelector('.acc--docs'); return !!d && getComputedStyle(d).display !== 'none'; }; const P = document.querySelectorAll('.project');"
+        " return vis(P[0]) && !vis(P[2]) && P[0].querySelector('.accordion').nextElementSibling.matches('.acc--docs'); })()"))
     check("media never uses object-fit: cover", lambda: b.js(
         "[...document.querySelectorAll('.viewer img, .viewer video, .viewer iframe')].every(m => getComputedStyle(m).objectFit !== 'cover')"))
     check("a portrait document is shown large (fills the viewer width or most of its 78vh height)", lambda: (lambda r: (r[0] >= 0.9 * r[1] or r[2] >= 0.7 * r[3], r))(b.js(
@@ -726,7 +743,7 @@ def visitor_checks(b, url):
         " && f.getAttribute('sandbox') === 'allow-scripts allow-same-origin allow-presentation allow-popups' && f.getAttribute('referrerpolicy') === 'strict-origin-when-cross-origin'; })()"))
 
     def accordion():
-        sel = "document.querySelector('.project .acc--tools')"
+        sel = "document.querySelector('.project .accordion > .acc:nth-child(2)')"
         before = b.js(f"{sel}.open")
         b.js(f"{sel}.querySelector('summary').click()")
         opened = b.js(f"{sel}.open")
@@ -734,22 +751,55 @@ def visitor_checks(b, url):
         b.js(f"{sel}.querySelector('summary').click()")
         return ((before, opened, b.js(f"{sel}.open")) == (False, True, False) and rot != "none", (before, opened, rot))
     check("accordion rows open and close (chevron rotates)", accordion)
-    check("project rows: Overview, Tools used, What I learned; round buttons from the shared component", lambda: b.js(
-        "(() => { const p = document.querySelector('.project'); const labels = [...p.querySelectorAll('.acc > summary .acc__label')].map(x => x.textContent);"
-        " return labels.join('|') === 'Overview|Tools used / how it was built|What I learned|View full documents' && p.querySelector('.acc--overview').open"
+    check("project rows come from data (empty rows hidden); round buttons from the shared component", lambda: b.js(
+        "(() => { const p = document.querySelector('.project'); const shown = [...p.querySelectorAll('.acc')].filter(a => getComputedStyle(a).display !== 'none').map(a => a.querySelector('.acc__label').textContent);"
+        " return shown.join('|') === 'Overview|Tools used / how it was built|View full documents' && [...p.querySelectorAll('.acc')].every(a => !a.open)"
         " && p.querySelectorAll('.project__buttons > .social').length === 3; })()"))
+
+    def mixed_media():
+        types = []
+        for _ in range(3):
+            types.append(b.js("(() => { const s = [...document.querySelectorAll('[data-viewer]')[1].querySelectorAll('.viewer__slide')].find(x => !x.hidden);"
+                              " return s.querySelector('video') ? 'video' : s.querySelector('.viewer__pdf') ? 'pdf' : s.querySelector('iframe.viewer__embed') ? 'embed' : 'image'; })()"))
+            b.js("document.querySelectorAll('[data-viewer]')[1].querySelector('.viewer__nav--next').click()")
+        b.js("document.querySelectorAll('[data-viewer]')[1].querySelector('.viewer__nav--prev').click()")
+        back = b.js("[...document.querySelectorAll('[data-viewer]')[1].querySelectorAll('.viewer__slide')].findIndex(x => !x.hidden)")
+        return (types == ["video", "pdf", "embed"] and back == 2, (types, back))
+    check("next and previous move through mixed media types (video, PDF, embed)", mixed_media)
+
+    def doc_lightbox():
+        p = "document.querySelector('.project')"
+        b.js(f"{p}.querySelector('.acc--docs summary').click()")
+        b.js(f"{p}.querySelector('.acc--docs a[data-doc-lightbox]').click()")
+        b.wait("document.querySelector('dialog.lightbox[open]')")
+        first = b.js("!!document.querySelector('dialog.lightbox iframe.lightbox__pdf')")
+        b.key("ArrowRight", "ArrowRight", 39)
+        second = b.js("!!document.querySelector('dialog.lightbox img.lightbox__img')")
+        b.key("Escape", "Escape", 27)
+        b.sleep(0.2)
+        b.js(f"{p}.querySelector('.acc--docs summary').click()")
+        b.js("document.querySelectorAll('[data-viewer]')[1].querySelectorAll('.viewer__dot')[1].click()")
+        b.js("document.querySelectorAll('[data-viewer]')[1].querySelector('.viewer__slide:not([hidden]) .viewer__expand').click()")
+        b.wait("document.querySelector('dialog.lightbox[open]')")
+        pdf = b.js("!!document.querySelector('dialog.lightbox iframe.lightbox__pdf')")
+        b.key("Escape", "Escape", 27)
+        b.sleep(0.2)
+        return (first and second and pdf and b.js("!document.querySelector('dialog.lightbox')"), (first, second, pdf))
+    check("documents and PDF pages open in the lightbox", doc_lightbox)
 
     def xss():
         b.goto(url)
         b.js("""window.__xss = 0; window.alert = () => { window.__xss = 1; };
           Promise.all([import('/js/render.js'), import('/js/state.js')]).then(([r, s]) => {
-            const d = s.state.data, p = d.projects[0];
+            const d = s.state.data, p = d.sections.find((x) => x.id === 'work').blocks.find((x) => x.type === 'project');
             d.profile.name = '<img src=x onerror="window.__xss=1">';
             d.profile.linkedin = 'javascript:window.__xss=1';
             d.profile.email = '"><svg onload=window.__xss=1>';
             p.title = '<script>window.__xss=1<\/script>';
-            p.links = [{ label: 'x', url: 'javascript:window.__xss=1' }, { label: 'y', url: 'data:text/html,<script>window.__xss=1<\/script>' }];
-            p.live = 'javascript:window.__xss=1';
+            p.documents = [{ label: 'x', url: 'javascript:window.__xss=1' }, { label: 'y', url: 'data:text/html,<script>window.__xss=1<\/script>' }];
+            p.buttons = [{ kind: 'live', url: 'javascript:window.__xss=1' }, { kind: 'email', url: '"><img src=x onerror=window.__xss=1>' }];
+            p.accordions = [{ title: '<img src=x onerror=window.__xss=1>', body: '<script>window.__xss=1<\/script>' }];
+            d.sections.push({ id: '"><img src=x onerror=window.__xss=1>', title: '<svg onload=window.__xss=1>', navLabel: '', blocks: [{ type: 'text', title: '<b>t</b>', body: '<img src=x onerror=window.__xss=1>' }] });
             p.media = [
               { type: 'image', src: 'javascript:window.__xss=1', alt: '"><img src=x onerror=window.__xss=1>', caption: '<b onmouseover=x>c</b>', poster: '' },
               { type: 'image', src: 'data:image/svg+xml,<svg onload=window.__xss=1>', alt: '', caption: '', poster: '' },
@@ -783,9 +833,12 @@ def visitor_checks(b, url):
         b.screenshot(os.path.join(os.environ["E2E_SCREENSHOTS"], "portfolio-1200.png"))
         b.js(INJECT_MEDIA)
         b.sleep(0.4)
-        b.js("document.getElementById('work').scrollIntoView({behavior: 'instant'})")
+        b.js("document.querySelector('.project').scrollIntoView({behavior: 'instant'}); window.scrollBy(0, -90)")
         data = b.cmd("Page.captureScreenshot", format="png")["data"]
         open(os.path.join(os.environ["E2E_SCREENSHOTS"], "project-portrait-1200.png"), "wb").write(base64.b64decode(data))
+        b.js("document.querySelectorAll('.project')[2].scrollIntoView({behavior: 'instant'}); window.scrollBy(0, -90)")
+        data = b.cmd("Page.captureScreenshot", format="png")["data"]
+        open(os.path.join(os.environ["E2E_SCREENSHOTS"], "project-no-media-1200.png"), "wb").write(base64.b64decode(data))
 
     # --- 390px
     print("\nVisitor view · 390px")
@@ -801,7 +854,7 @@ def visitor_checks(b, url):
         " return r.right - parseFloat(s.width) >= 0 && r.right <= innerWidth; })()"))
     b.js(INJECT_MEDIA)
     check("project viewer is stacked above the text at 390px", lambda: b.js(
-        "(() => { const p = document.querySelector('.project'); const v = p.querySelector('.viewer').getBoundingClientRect(); const t = p.querySelector('.project__body').getBoundingClientRect();"
+        "(() => { const p = document.querySelector('.project'); const v = p.querySelector('.viewer').getBoundingClientRect(); const t = p.querySelector('.project__side').getBoundingClientRect();"
         " return t.top >= v.bottom && Math.abs(t.left - v.left) < 2; })()"))
     def phone_pdf():
         b.js("document.querySelectorAll('[data-viewer]')[1].querySelectorAll('.viewer__dot')[1].click()")
@@ -818,6 +871,9 @@ def visitor_checks(b, url):
         b.js("document.querySelector('.project').scrollIntoView({behavior: 'instant'})")
         data = b.cmd("Page.captureScreenshot", format="png")["data"]
         open(os.path.join(os.environ["E2E_SCREENSHOTS"], "project-portrait-390.png"), "wb").write(base64.b64decode(data))
+        b.js("document.querySelectorAll('.project')[2].scrollIntoView({behavior: 'instant'}); window.scrollBy(0, -90)")
+        data = b.cmd("Page.captureScreenshot", format="png")["data"]
+        open(os.path.join(os.environ["E2E_SCREENSHOTS"], "project-no-media-390.png"), "wb").write(base64.b64decode(data))
         b.js("document.querySelector('[data-viewer] .viewer__slide:not([hidden]) img').click()")
         b.wait("document.querySelector('dialog.lightbox[open]')")
         b.sleep(0.3)
@@ -907,16 +963,29 @@ def owner_checks(b, url):
     check("editable fields have a solid (not dashed) border in edit mode", lambda: (lambda r: (all(x == ["solid", "1px"] for x in r) and len(r) > 100, len(r)))(b.js(
         "[...document.querySelectorAll('#top [contenteditable], main [contenteditable], footer [contenteditable]')].map(e => { const s = getComputedStyle(e), f = getComputedStyle(e, '::after');"
         " return s.outlineStyle === 'dashed' || s.borderTopStyle === 'dashed' ? ['dashed', ''] : [f.borderTopStyle, f.borderTopWidth]; })")))
-    check("accordion rows are forced open in edit mode", lambda: b.js("[...document.querySelectorAll('main details')].every(d => d.open)"))
+    check("dropdown rows stay closed in edit mode (not forced open)", lambda: b.js("[...document.querySelectorAll('main details')].every(d => !d.open) && document.querySelectorAll('main details').length > 10"))
+    check("in edit mode an empty viewer shows only an 'Add media' button", lambda: b.js(
+        "(() => { const v = document.querySelectorAll('.project [data-viewer]')[2]; const vis = [...v.children].filter(c => getComputedStyle(c).display !== 'none');"
+        " return !v.hidden && vis.length === 1 && vis[0].matches('.ed-add') && vis[0].textContent === 'Add media' && !v.querySelector('.badge'); })()"))
+    check("in edit mode 'View full documents' is always shown, with an Add document control", lambda: b.js(
+        "[...document.querySelectorAll('.project')].every(p => { const d = p.querySelector('.acc--docs'); return getComputedStyle(d).display !== 'none' && [...d.querySelectorAll('.ed-add')].some(x => x.textContent === 'Add document'); })"))
     check("brand, footer text, nav labels, hero buttons and contact labels are editable", lambda: b.js(
-        "['ui.brand', 'ui.footer', 'ui.backToTop', 'nav.0.label', 'nav.5.label', 'ui.viewProjects', 'ui.getInTouch', 'ui.contactEmail', 'ui.contactLinkedIn',"
+        "['ui.brand', 'ui.footer', 'ui.backToTop', 'ui.navOverview', 'sections.4.navLabel', 'ui.viewProjects', 'ui.getInTouch', 'ui.contactEmail', 'ui.contactLinkedIn',"
         " 'ui.contactLocation', 'ui.viewProfile', 'ui.fileMissing'].every(p => document.querySelector(`[data-edit=\"${p}\"]`)?.isContentEditable)"))
-    check("'No image' placeholder is editable in edit mode", lambda: b.js(
-        "[...document.querySelectorAll('[data-edit=\"ui.noImage\"]')].length > 0 && [...document.querySelectorAll('[data-edit=\"ui.noImage\"]')].every(e => e.isContentEditable)"))
+    def no_image_label():
+        # the label only shows while there is no photo: blank it, re-enter edit mode, check, restore
+        fab = "document.getElementById('owner-login').click()"
+        photo = b.js("import('/js/state.js').then(m => { const v = m.state.data.profile.photo; m.state.data.profile.photo = ''; return v; })")
+        b.js(fab); b.sleep(0.2); b.js(fab); b.sleep(0.2)
+        r = b.js("[...document.querySelectorAll('[data-edit=\"ui.noImage\"]')].map(e => e.isContentEditable)")
+        b.js(f"import('/js/state.js').then(m => {{ m.state.data.profile.photo = {json.dumps(photo)}; }})")
+        b.js(fab); b.sleep(0.2); b.js(fab); b.sleep(0.2)
+        return (len(r) > 0 and all(r), r)
+    check("'No image' placeholder is editable in edit mode", no_image_label)
 
     def edit_nav_label():
-        b.js("(() => { const e = document.querySelector('[data-edit=\"nav.1.label\"]'); e.textContent = 'Key skills'; e.dispatchEvent(new Event('input', {bubbles: true})); })()")
-        return b.js("import('/js/state.js').then(m => m.state.data.nav[1].label === 'Key skills')")
+        b.js("(() => { const e = document.querySelector('[data-edit=\"sections.0.navLabel\"]'); e.textContent = 'Key skills'; e.dispatchEvent(new Event('input', {bubbles: true})); })()")
+        return b.js("import('/js/state.js').then(m => m.state.data.sections[0].navLabel === 'Key skills')")
     check("editing a nav label updates the data", edit_nav_label)
 
     def links_inert():
@@ -935,7 +1004,7 @@ def owner_checks(b, url):
         b.wait("document.querySelector('dialog[open] [data-choice]')")
         b.js("document.querySelector('dialog[open] [data-choice=\"discard\"]').click()")    # Discard and exit
         b.wait("!document.body.classList.contains('editing')")
-        restored = b.js("import('/js/state.js').then(m => m.state.data.nav[1].label)")
+        restored = b.js("import('/js/state.js').then(m => m.state.data.sections[0].navLabel)")
         gone = b.js("!document.querySelector('.ownerbar') && getComputedStyle(document.body).paddingBottom === '0px'")
         b.js("document.getElementById('owner-login').click()")
         b.wait("document.body.classList.contains('editing')")
@@ -957,18 +1026,21 @@ def owner_checks(b, url):
             b.wait(f"document.querySelectorAll('[data-collection=\"{container}\"] > [data-item]').length === {before}")
             return True
         return run
-    check("experience entries can be added and removed", add_remove("experience", "Add job", "experience"))
-    check("education entries can be added and removed", add_remove("education", "Add education", "education"))
-    check("experience bullet points can be added and removed", add_remove("experience.0.bullets", "Add bullet point", "experience[0].bullets"))
-    check("education bullet points can be added and removed", add_remove("education.0.bullets", "Add bullet point", "education[0].bullets"))
-    check("skill groups can be added and removed", add_remove("skills", "Add skill group", "skills"))
+    EXP, EDU = "sections.1.blocks.0.items", "sections.2.blocks.0.items"
+    check("experience entries can be added and removed", add_remove(EXP, "Add job", "sections[1].blocks[0].items"))
+    check("education entries can be added and removed", add_remove(EDU, "Add education", "sections[2].blocks[0].items"))
+    check("experience bullet points can be added and removed", add_remove(f"{EXP}.0.bullets", "Add bullet point", "sections[1].blocks[0].items[0].bullets"))
+    check("education bullet points can be added and removed", add_remove(f"{EDU}.0.bullets", "Add bullet point", "sections[2].blocks[0].items[0].bullets"))
+    check("skill groups can be added and removed", add_remove("sections.0.blocks.0.groups", "Add skill group", "sections[0].blocks[0].groups"))
 
     check("icon buttons get link editors; email uses an address field", lambda: b.js(
         "(() => { const s = [...document.querySelectorAll('.socials > a')]; return s.every(a => a.nextElementSibling?.classList.contains('ed-btn'))"
         " && s[1].nextElementSibling.textContent === 'Edit email' && s[0].nextElementSibling.textContent === 'Edit link'; })()"))
 
     # --- Media editing (project 1)
-    ADD_MEDIA = "document.querySelector('[data-media=\"projects.0.media\"] > .ed-add').click()"
+    P0 = "sections.3.blocks.1.media"   # first project's media list (Projects & Documents section, block 1)
+    ADD_MEDIA = f"document.querySelector('[data-media=\"{P0}\"] > .ed-add').click()"
+    P0_JS = "m.state.data.sections[3].blocks[1].media"
     def media_dialog(files_js, url=""):
         b.js(ADD_MEDIA)
         b.wait("document.querySelector('dialog[open] input[type=file]')")
@@ -982,7 +1054,7 @@ def owner_checks(b, url):
             b.js("document.querySelector('dialog[open]').close()")
         return err
     PNGS = "Promise.all(['slide-1', 'slide-2'].map(n => fetch(`tests/fixtures/${n}.png`).then(r => r.blob()).then(bl => new File([bl], `${n}.png`, {type: 'image/png'}))))"
-    media_len = lambda: b.js("import('/js/state.js').then(m => m.state.data.projects[0].media.length)")
+    media_len = lambda: b.js("import('/js/state.js').then(m => " + P0_JS + ".length)")
 
     check("a .pptx upload is refused with an 'export as PDF or images' message", lambda: (lambda e: (bool(e) and "PowerPoint" in e and "PDF" in e and media_len() == 0, e))(
         media_dialog("[new File(['x'], 'talk.pptx')]")))
@@ -991,30 +1063,30 @@ def owner_checks(b, url):
 
     def add_deck():
         err = media_dialog(PNGS)
-        b.wait("document.querySelectorAll('[data-media=\"projects.0.media\"] .viewer__slide').length === 2")
-        before = b.js("import('/js/state.js').then(m => m.state.data.projects[0].media[0].slides.map(s => s.src))")
-        b.js("[...document.querySelectorAll('[data-media=\"projects.0.media\"] .viewer__slide:not([hidden]) .ed-btn')].find(x => x.textContent === 'Slide later ▶').click()")
+        b.wait(f"document.querySelectorAll('[data-media=\"{P0}\"] .viewer__slide').length === 2")
+        before = b.js("import('/js/state.js').then(m => " + P0_JS + "[0].slides.map(s => s.src))")
+        b.js(f"[...document.querySelectorAll('[data-media=\"{P0}\"] .viewer__slide:not([hidden]) .ed-btn')].find(x => x.textContent === 'Slide later ▶').click()")
         b.sleep(0.2)
-        after = b.js("import('/js/state.js').then(m => m.state.data.projects[0].media[0])")
+        after = b.js("import('/js/state.js').then(m => " + P0_JS + "[0])")
         ok = (err is None and after["type"] == "slides" and [s["src"] for s in after["slides"]] == before[::-1]
               and all(s.startswith("assets/uploads/") for s in before)
-              and b.js("[...document.querySelectorAll('[data-media=\"projects.0.media\"] img')].every(i => i.src.startsWith('blob:'))"))
+              and b.js(f"[...document.querySelectorAll('[data-media=\"{P0}\"] .viewer__stage img')].every(i => i.src.startsWith('blob:'))"))
         return (ok, (err, before, after))
     check("several images upload as one slide deck, and slides can be reordered", add_deck)
 
     def add_embed():
         bad = media_dialog("[]", "https://evil.example/watch?v=dQw4w9WgXcQ")
         good = media_dialog("[]", "https://youtu.be/dQw4w9WgXcQ")
-        item = b.js("import('/js/state.js').then(m => m.state.data.projects[0].media.at(-1))")
-        frame = b.js("!!document.querySelector('[data-media=\"projects.0.media\"] iframe.viewer__embed[src=\"https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ\"]')")
+        item = b.js("import('/js/state.js').then(m => " + P0_JS + ".at(-1))")
+        frame = b.js(f"!!document.querySelector('[data-media=\"{P0}\"] iframe.viewer__embed[src=\"https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ\"]')")
         return (bool(bad) and good is None and item["type"] == "embed" and item["src"] == "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ" and frame, (bad, good, item))
     check("pasted YouTube links become youtube-nocookie embeds; other sites are refused", add_embed)
     check("media alt text and captions are editable fields", lambda: b.js(
-        "(() => { const v = document.querySelector('[data-media=\"projects.0.media\"]'); const s = v.querySelector('.viewer__slide');"
+        f"(() => {{ const v = document.querySelector('[data-media=\"{P0}\"]'); const s = v.querySelector('.viewer__slide');"
         " return s.querySelector('.viewer__caption').isContentEditable && s.querySelector('.ed-alt [data-edit$=\".alt\"]').isContentEditable; })()"))
 
     def save():
-        b.js("(() => { const e = document.querySelector('[data-edit=\"nav.1.label\"]'); e.textContent = 'Key skills'; e.dispatchEvent(new Event('input', {bubbles: true})); })()")
+        b.js("(() => { const e = document.querySelector('[data-edit=\"sections.0.navLabel\"]'); e.textContent = 'Key skills'; e.dispatchEvent(new Event('input', {bubbles: true})); })()")
         b.js("(() => { const e = document.querySelector('[data-edit=\"ui.brand\"]'); e.textContent = 'Tamara Pen PhD'; e.dispatchEvent(new Event('input', {bubbles: true})); })()")
         mock.calls.clear()
         b.js("[...document.querySelectorAll('.ownerbar button')].find(x => x.textContent === 'Save changes').click()")
@@ -1022,12 +1094,141 @@ def owner_checks(b, url):
         blobs = [json.loads(c["body"]) for c in mock.calls if c["url"].endswith("/git/blobs")]
         saved = json.loads(base64.b64decode(blobs[-1]["content"]).decode()) if blobs else {}
         patches = [c for c in mock.calls if c["method"] == "PATCH"]
-        uploads = [s["src"] for s in saved.get("projects", [{}])[0].get("media", [{}])[0].get("slides", [])]
-        ok = (saved.get("ui", {}).get("brand") == "Tamara Pen PhD" and saved["nav"][1]["label"] == "Key skills"
+        uploads = [s["src"] for s in saved.get("sections", [{}] * 4)[3].get("blocks", [{}, {}])[1].get("media", [{}])[0].get("slides", [])]
+        ok = (saved.get("ui", {}).get("brand") == "Tamara Pen PhD" and saved["sections"][0]["navLabel"] == "Key skills"
               and len(blobs) == 3 and len(uploads) == 2   # two slide images + data.json, all in the one commit
               and len(patches) == 1 and all(c["auth"] == "Bearer good-token" for c in mock.calls))
         return (ok, [c["method"] + " " + c["url"] for c in mock.calls])
     check("Save commits data.json (with the edits) in one commit using the token", save)
+
+
+    # --- Sections, blocks and drag-to-move ---------------------------------------------
+    def save_now():
+        mock.calls.clear()
+        b.js("[...document.querySelectorAll('.ownerbar button')].find(x => x.textContent === 'Save changes').click()")
+        b.wait("['Saved', 'Save failed'].includes(document.querySelector('.ownerbar__status').textContent)")
+        blobs = [json.loads(c["body"]) for c in mock.calls if c["url"].endswith("/git/blobs")]
+        return json.loads(base64.b64decode(blobs[-1]["content"]).decode()) if blobs else {}
+
+    def center(js_el):
+        return b.js(f"(() => {{ const r = ({js_el}).getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; }})()")
+
+    def drag(grip_js, target_js, where="after", axis="y", screenshot=None, cancel=False):
+        """Press on a grip handle, move to just past the target's midpoint, release (mouse pointer events)."""
+        b.js(f"({grip_js}).scrollIntoView({{block: 'center', behavior: 'instant'}})")
+        gx, gy = center(grip_js)
+        r = b.js(f"(() => {{ const r = ({target_js}).getBoundingClientRect(); return [r.left, r.top, r.right, r.bottom, r.width, r.height]; }})()")
+        if axis == "y":
+            tx, ty = r[0] + r[4] / 2, (r[3] - 6 if where == "after" else r[1] + 6)
+        else:
+            tx, ty = (r[2] - 6 if where == "after" else r[0] + 6), r[1] + r[5] / 2
+        b.cmd("Input.dispatchMouseEvent", type="mousePressed", x=gx, y=gy, button="left", buttons=1, clickCount=1)
+        for k in range(1, 9):
+            b.cmd("Input.dispatchMouseEvent", type="mouseMoved", x=gx + (tx - gx) * k / 8, y=gy + (ty - gy) * k / 8, button="left", buttons=1)
+            b.sleep(0.03)
+        line = b.js("!!document.querySelector('.ed-drop-line') && !!document.querySelector('.is-dragging')")
+        if screenshot:
+            data = b.cmd("Page.captureScreenshot", format="png")["data"]
+            open(screenshot, "wb").write(base64.b64decode(data))
+        if cancel:   # go back to the start point: dropping there changes nothing
+            b.cmd("Input.dispatchMouseEvent", type="mouseMoved", x=gx, y=gy, button="left", buttons=1)
+            b.sleep(0.05)
+        b.cmd("Input.dispatchMouseEvent", type="mouseReleased", x=gx if cancel else tx, y=gy if cancel else ty, button="left", buttons=0, clickCount=1)
+        b.sleep(0.3)
+        return line
+
+    if os.environ.get("E2E_SCREENSHOTS"):
+        drag("document.querySelectorAll('.project')[0].querySelector('.accordion > .acc .ed-grip')",
+             "document.querySelectorAll('.project')[0].querySelectorAll('.accordion > .acc')[2]", screenshot=os.path.join(os.environ["E2E_SCREENSHOTS"], "drag-in-progress-1200.png"), cancel=True)
+
+    def drag_everything():
+        b.viewport(1200, 2400)   # tall window so start and drop points are on screen together
+        order = lambda js: b.js(js)
+        lines = []
+        # 1. media item: first thumbnail after the second (x axis, in the media strip)
+        media_before = b.js("import('/js/state.js').then(m => " + P0_JS + ".map(x => x.type))")
+        lines.append(drag(f"document.querySelector('[data-media=\"{P0}\"] .ed-tray > .ed-thumb .ed-grip')",
+                          f"document.querySelectorAll('[data-media=\"{P0}\"] .ed-tray > .ed-thumb')[1]", axis="x"))
+        media_dom = order(f"[...document.querySelectorAll('[data-media=\"{P0}\"] .ed-tray .ed-thumb__label')].map(x => x.textContent.replace(/^\\d+\\. /, ''))")
+        # 2. dropdown row: first row of the first project after the second
+        rows_before = order("[...document.querySelectorAll('.project')[0].querySelectorAll('.accordion > .acc .acc__label')].map(x => x.textContent)")
+        lines.append(drag("document.querySelectorAll('.project')[0].querySelector('.accordion > .acc .ed-grip')",
+                          "document.querySelectorAll('.project')[0].querySelectorAll('.accordion > .acc')[1]"))
+        rows_dom = order("[...document.querySelectorAll('.project')[0].querySelectorAll('.accordion > .acc .acc__label')].map(x => x.textContent)")
+        # 3. section: Experience above Skills
+        lines.append(drag("document.querySelector('#experience > .ed-sort .ed-grip')", "document.getElementById('skills')", where="before"))
+        sec_dom = order("[...document.querySelectorAll('main > section')].map(s => s.id)")
+        nav_dom = order("[...document.querySelectorAll('[data-nav] a')].map(a => a.getAttribute('href'))")
+        # 4. block: first project below the second
+        blocks_before = order("[...document.querySelectorAll('#work > .blocks > .block')].map(x => x.dataset.blockId)")
+        lines.append(drag("document.querySelectorAll('#work > .blocks > .block--project')[0].querySelector(':scope > .ed-sort .ed-grip')",
+                          "document.querySelectorAll('#work > .blocks > .block--project')[1]"))
+        blocks_dom = order("[...document.querySelectorAll('#work > .blocks > .block')].map(x => x.dataset.blockId)")
+        b.viewport(1200)
+        saved = save_now()
+        S = saved.get("sections", [])
+        work = next((x for x in S if x["id"] == "work"), {"blocks": []})
+        moved_proj = next((x for x in work["blocks"] if x.get("id") == blocks_before[1]), {})
+        exp_media = [media_before[1], media_before[0]] + media_before[2:]
+        exp_rows = [rows_before[1], rows_before[0]] + rows_before[2:]
+        exp_blocks = [blocks_before[0], blocks_before[2], blocks_before[1]] + blocks_before[3:]
+        ok = (all(lines)
+              and media_dom == [{"slides": "Slides", "embed": "Video link"}.get(t, t) for t in exp_media]
+              and rows_dom == exp_rows
+              and sec_dom[:3] == ["overview", "experience", "skills"] and nav_dom[:3] == ["#overview", "#experience", "#skills"]
+              and blocks_dom == exp_blocks
+              and [x["id"] for x in S][:2] == ["experience", "skills"]
+              and [x.get("id") for x in work["blocks"]] == exp_blocks
+              and [m["type"] for m in moved_proj.get("media", [])] == exp_media
+              and [a["title"] for a in moved_proj.get("accordions", [])] == exp_rows)
+        return (ok, {"lines": lines, "media": media_dom, "rows": rows_dom, "sections": sec_dom, "nav": nav_dom, "blocks": blocks_dom})
+    check("dragging (pointer events) reorders sections, blocks, media and dropdown rows in the DOM and saved JSON", drag_everything)
+
+    def up_down():
+        b.js("document.querySelector('#experience > .ed-sort .ed-move[aria-label=\"Move down\"]').click()")
+        b.sleep(0.2)
+        sec = b.js("[...document.querySelectorAll('main > section')].map(s => s.id).slice(0, 3)")
+        b.js("document.querySelectorAll('#work > .blocks > .block--project')[1].querySelector(':scope > .ed-sort .ed-move[aria-label=\"Move up\"]').click()")
+        b.sleep(0.2)
+        blocks = b.js("[...document.querySelectorAll('#work > .blocks > .block--project')].map(x => x.dataset.blockId).slice(0, 2)")
+        state_ = b.js("import('/js/state.js').then(m => [m.state.data.sections.map(s => s.id).slice(0, 2), m.state.data.sections[3].blocks.filter(x => x.type === 'project').map(x => x.id).slice(0, 2)])")
+        first_up = b.js("document.querySelector('#skills > .ed-sort .ed-move[aria-label=\"Move up\"]').disabled")
+        ok = sec == ["overview", "skills", "experience"] and blocks == ["psa2025", "microbiome2025"] and state_ == [["skills", "experience"], blocks] and first_up
+        return (ok, (sec, blocks, state_, first_up))
+    check("up and down buttons reorder sections and blocks too", up_down)
+
+    def add_section():
+        b.js("document.querySelector('main > .ed-add--section').click()")
+        b.wait("document.querySelector('dialog[open] select')")
+        options = b.js("[...document.querySelectorAll('dialog[open] select option')].map(o => o.value)")
+        b.js("(() => { const d = document.querySelector('dialog[open]'); d.querySelector('input').value = 'Publications'; d.querySelector('select').value = 'text'; })()")
+        if os.environ.get("E2E_SCREENSHOTS"):
+            data = b.cmd("Page.captureScreenshot", format="png")["data"]
+            open(os.path.join(os.environ["E2E_SCREENSHOTS"], "add-section-picker-1200.png"), "wb").write(base64.b64decode(data))
+        b.js("document.querySelector('dialog[open] .dlg__actions .btn:not(.btn--ghost)').click()")
+        b.wait("document.getElementById('publications')")
+        panel = b.js("(() => { const s = document.getElementById('publications'); return s.matches('main > section.section') && s.querySelector('h2').textContent === 'Publications' && !!s.querySelector('.block--text'); })()")
+        nav = b.js("[...document.querySelectorAll('[data-nav] a')].map(a => [a.getAttribute('href'), a.textContent]).at(-1)")
+        b.js("document.querySelector('#publications .blocks + .ed-add').click()")   # Add block
+        b.wait("document.querySelector('dialog[open] select')")
+        b.js("(() => { const d = document.querySelector('dialog[open]'); d.querySelector('select').value = 'gallery'; d.querySelector('.dlg__actions .btn:not(.btn--ghost)').click(); })()")
+        b.wait("document.querySelector('#publications .block--gallery')")
+        saved = save_now()
+        pub = next((x for x in saved.get("sections", []) if x["id"] == "publications"), None)
+        ok = (options == ["text", "project", "gallery", "entries", "tags", "buttons", "documents"] and panel and nav == ["#publications", "Publications"]
+              and pub and pub["title"] == "Publications" and [x["type"] for x in pub["blocks"]] == ["text", "gallery"])
+        return (ok, (options, panel, nav, pub))
+    check("Add section creates a panel and a nav entry, blocks can be added, and it survives Save", add_section)
+
+    def delete_section():
+        b.js("document.querySelector('#publications > .ed-sort .ed-remove').click()")
+        b.wait("document.querySelector('dialog[open]')")
+        b.js("document.querySelector('dialog[open] .dlg__actions .btn:not(.btn--ghost)').click()")
+        b.wait("!document.getElementById('publications')")
+        nav = b.js("[...document.querySelectorAll('[data-nav] a')].some(a => a.getAttribute('href') === '#publications')")
+        in_state = b.js("import('/js/state.js').then(m => m.state.data.sections.some(s => s.id === 'publications'))")
+        return (not nav and not in_state, (nav, in_state))
+    check("deleting a section (after a confirm) removes it and its nav entry", delete_section)
 
     def save_and_exit():
         b.js("(() => { const e = document.querySelector('[data-edit=\"ui.brand\"]'); e.textContent = 'Tamara Pen'; e.dispatchEvent(new Event('input', {bubbles: true})); })()")
@@ -1041,6 +1242,8 @@ def owner_checks(b, url):
         visible_bar = b.js("[...document.querySelectorAll('.ownerbar')].some(x => x.offsetParent !== null)")
         return (patched == 1 and not visible_bar and not f["bar"] and not f["barClass"] and f["pad"] == "0px" and not f["exit"], (patched, f))
     check("after edit, Save and exit: no owner bar and no extra bottom padding remain", save_and_exit)
+    check("exiting edit mode removes every grip handle and add control", lambda: (lambda n: (n == 0, n))(b.js(
+        "document.querySelectorAll('.ed-grip, .ed-sort, .ed-move, .ed-add, .ed-tray, .ed-drop-line, .ed-btn, [data-editor-ui], [contenteditable]').length")))
 
     def logout():
         b.js("document.getElementById('owner-login').click()")   # back into edit mode, where Log out lives

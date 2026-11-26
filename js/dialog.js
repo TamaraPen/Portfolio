@@ -5,7 +5,7 @@ import { el, uid } from "./util.js";
 
 /**
  * Open a modal form.
- *   fields: [{ name, label, type?: "text"|"password"|"textarea"|"file", value?, accept?, multiple?, help? }]
+ *   fields: [{ name, label, type?: "text"|"password"|"textarea"|"file"|"select", value?, accept?, multiple?, options?: [[value, label]], help? }]
  *   (a file field with multiple: true yields an array of Files; otherwise one File or null)
  *   onSubmit(values): may be async; throw an Error to show a message and keep the dialog open.
  * Resolves with onSubmit's return value (or the values), or null if cancelled.
@@ -22,6 +22,7 @@ export function openDialog({ title, intro, fields = [], confirmLabel = "OK", can
       const id = uid();
       let input;
       if (f.type === "textarea") input = el("textarea", { id, rows: 3 });
+      else if (f.type === "select") input = el("select", { id }, (f.options || []).map(([value, label]) => el("option", { value }, label)));
       else if (f.type === "file") input = el("input", { id, type: "file", accept: f.accept || null, multiple: f.multiple ? "" : null });
       else input = el("input", { id, type: f.type || "text", autocomplete: "off", spellcheck: f.type === "password" ? "false" : null });
       if (f.value != null && f.type !== "file") input.value = f.value;

@@ -8,7 +8,7 @@ import { CONFIG } from "../config.js";
 import { state } from "./state.js";
 import { renderAll } from "./render.js";
 import { setIndex } from "./viewer.js";
-import { el, getPath, setPath, uid, safeUrl, toEmbedUrl, pending, slugFileName, fileToBase64, textToBase64 } from "./util.js";
+import { el, getPath, setPath, uid, safeUrl, toEmbedUrl, localMediaUrl, pending, slugFileName, fileToBase64, textToBase64 } from "./util.js";
 import { openDialog, confirmDialog, choiceDialog, toast } from "./dialog.js";
 import { fetchRemoteData, commitFiles } from "./github.js";
 import { signOut } from "./auth.js";
@@ -228,13 +228,17 @@ const FILE_HELP = `Up to ${LIMITS.image} MB per image, ${LIMITS.pdf} MB per PDF,
 
 // --- Decorating the rendered page with edit controls ------------------------
 // Brand (header) and footer text are editable too, so decorate all three page regions.
+// Everything added here is removed again on EXIT, because leaving edit mode re-renders the page
+// without decorating it.
 const ROOTS = "#top, main, footer";
 
 function decorate() {
   const all = (sel) => document.querySelectorAll(ROOTS.split(", ").map((r) => `${r} ${sel}`).join(", "));
-  // Accordion rows are forced open in edit mode so every field can be reached and edited.
-  all("details").forEach((d) => { d.open = true; });
-  all("summary").forEach((s) => s.addEventListener("click", (e) => e.preventDefault()));
+  // Dropdown rows keep their normal open/closed behaviour (all start closed). Clicking an editable
+  // title or an editor control inside a row header must not toggle the row.
+  all("summary").forEach((s) => s.addEventListener("click", (e) => {
+    if (e.target.closest("[contenteditable], [data-editor-ui], .ed-btn")) e.preventDefault();
+  }));
   all("[data-edit]").forEach(makeEditable);
   // While editing, links (nav, buttons, brand, social icons, files) must not navigate away.
   all("a").forEach((a) => a.addEventListener("click", (e) => e.preventDefault()));
@@ -242,9 +246,9 @@ function decorate() {
   main.querySelectorAll("[data-img]").forEach(decorateImage);
   main.querySelectorAll("[data-viewer]").forEach(decorateViewer);
   main.querySelectorAll("[data-tags]").forEach(decorateTags);
-  main.querySelectorAll("[data-links]").forEach(decorateLinks);
+  main.querySelectorAll("[data-doclinks]").forEach(decorateDocLinks);
   main.querySelectorAll("[data-url]").forEach(decorateUrl);
-  main.querySelectorAll("[data-collection]").forEach(decorateCollection);
+  [main, ...main.querySelectorAll("[data-collection]")].forEach(decorateCollection);
   main.querySelectorAll("[data-badge]").forEach(decorateBadge);
 }
 
@@ -264,6 +268,8 @@ function makeEditable(node) {
   });
   node.addEventListener("keydown", (e) => {
     if (!multi && e.key === "Enter") { e.preventDefault(); node.blur(); }
+    // Space/Enter inside an editable row title must type, not toggle the dropdown row
+    if (e.key === " " && node.closest("summary")) { e.preventDefault(); document.execCommand("insertText", false, " "); }
   });
   node.addEventListener("paste", (e) => {
     e.preventDefault();
@@ -273,21 +279,20 @@ function makeEditable(node) {
   });
 }
 
-// Images (profile photo, project images)
+// Profile photo
 function decorateImage(node) {
   const path = node.dataset.img;
   const has = Boolean(getPath(state.data, path));
-  const isProfile = path === "profile.photo";
-  node.hidden = false;
-  if (!has && !isProfile) {
-    const none = el("span", { class: "muted", "data-edit": "ui.noImage" }, state.data.ui.noImage);
-    node.append(none);
-    makeEditable(none);
-  }
   const controls = el("span", { class: "ed-inline", "data-editor-ui": "" },
-    button(has ? (isProfile ? "Replace photo" : "Replace image") : isProfile ? "Add photo" : "Add image", () => chooseImage(path)),
+    button(has ? "Replace photo" : "Add photo", () => chooseImage(path)),
     has ? button("Remove", () => { setPath(state.data, path, ""); changed(); }, "ed-btn--danger") : null);
   node.after(controls);
+  if (!has) {
+    // editable "No image" label (ui.noImage) next to the empty photo slot
+    const none = el("span", { class: "muted ed-noimage", "data-edit": "ui.noImage" }, state.data.ui.noImage);
+    controls.prepend(none);
+    makeEditable(none);
+  }
   // Alt text (read by screen readers) for an image that is present
   const altPath = node.dataset.alt;
   if (has && altPath) {
@@ -313,7 +318,7 @@ async function chooseImage(path) {
   if (ok) changed();
 }
 
-// Tag lists (skills, project tags)
+// Tag lists (skills)
 function decorateTags(ul) {
   const path = ul.dataset.tags;
   ul.querySelectorAll(":scope > li").forEach((li, i) => {
@@ -335,39 +340,44 @@ function decorateTags(ul) {
   })));
 }
 
-// Project links / attached documents
-function decorateLinks(ul) {
-  const path = ul.dataset.links;
+// A project's "View full documents" row: always visible in edit mode, with an Add document control.
+function decorateDocLinks(ul) {
+  const path = ul.dataset.doclinks;
+  ul.closest("details").hidden = false;
   ul.querySelectorAll(":scope > li").forEach((li, i) => {
-    li.append(button("✕", () => { getPath(state.data, path).splice(i, 1); changed(); }, "ed-btn--danger"));
-    li.lastChild.setAttribute("aria-label", "Remove link");
+    const b = button("✕", () => { getPath(state.data, path).splice(i, 1); changed(); }, "ed-btn--danger");
+    b.setAttribute("aria-label", "Remove document");
+    li.append(b);
   });
-  ul.append(el("li", {}, button("+ Add link or file", async () => {
-    const ok = await openDialog({
-      title: "Add a link or attached file",
-      fields: [
-        { name: "label", label: "Link text", value: "" },
-        { name: "url", label: "Web address", help: "https://… — or leave empty and upload a file below." },
-        { name: "file", label: "Or upload a file", type: "file", accept: accept(ANY_EXT), help: FILE_HELP },
-      ],
-      confirmLabel: "Add",
-      onSubmit: ({ label, url, file }) => {
-        if (!label) throw new Error("Enter the link text.");
-        let value;
-        if (file) value = registerFile(file, ANY_EXT);
-        else {
-          value = safeUrl(url);
-          if (!value) throw new Error("Enter a valid https:// or mailto: address, or choose a file.");
-        }
-        getPath(state.data, path).push({ label, url: value });
-        return true;
-      },
-    });
-    if (ok) changed();
-  })));
+  ul.after(el("button", { type: "button", class: "btn btn--ghost ed-add", onclick: () => addDocument(path) }, "Add document"));
 }
 
-// Edit the URL / uploaded file behind any [data-url] element (documents, links, LinkedIn)
+async function addDocument(path) {
+  const ok = await openDialog({
+    title: "Add a document",
+    intro: "PDFs and images open in the full-screen viewer; other files download.",
+    fields: [
+      { name: "label", label: "Document name" },
+      { name: "file", label: "Upload a file", type: "file", accept: accept(ANY_EXT), help: FILE_HELP },
+      { name: "url", label: "Or a web address", help: "https://…" },
+    ],
+    confirmLabel: "Add",
+    onSubmit: ({ label, url, file }) => {
+      if (!label) throw new Error("Enter the document name.");
+      let value;
+      if (file) value = registerFile(file, ANY_EXT);
+      else {
+        value = safeUrl(url);
+        if (!value) throw new Error("Choose a file, or enter a valid https:// address.");
+      }
+      getPath(state.data, path).push({ label, url: value });
+      return true;
+    },
+  });
+  if (ok) changed();
+}
+
+// Edit the URL / uploaded file behind any [data-url] element (documents, links, icon buttons)
 function decorateUrl(node) {
   const path = node.dataset.url;
   if (node.dataset.urlKind === "email") return decorateEmail(node, path);
@@ -396,7 +406,7 @@ function decorateUrl(node) {
   node.after(btn);
 }
 
-// The email icon stores a bare address (profile.email); the page builds the mailto: link.
+// The email icon stores a bare address; the page builds the mailto: link.
 const EMAIL_RE = /^[^\s@<>"]+@[^\s@<>"]+\.[^\s@<>"]+$/;
 function decorateEmail(node, path) {
   const btn = button("Edit email", async () => {
@@ -416,51 +426,230 @@ function decorateEmail(node, path) {
   node.after(btn);
 }
 
-// Add / remove items in a list. A container's data-template picks the template (default: its path).
+// --- Templates and "add" dialogs -----------------------------------------------------
 const entryTemplate = () => ({ role: "New role", org: "Organisation", place: "Place", dates: "Dates", summary: "", bullets: ["New bullet point"] });
+const projectButtons = () => [{ kind: "github", url: "" }, { kind: "live", url: "" }, { kind: "document", url: "" }];
 const TEMPLATES = {
-  projects: () => ({
-    id: uid(), kind: "Project type", meta: "Event or date", title: "New project title", summary: "Short summary of the project.",
-    citations: [], tags: [], image: "", imageAlt: "", links: [], placeholder: "",
-    media: [], mediaPlaceholder: "Placeholder: add photos, slides, a PDF or a video",
-    tools: "", toolsPlaceholder: "Placeholder: list the tools and methods used", learned: "", learnedPlaceholder: "Placeholder: add what you learned",
-    github: "", live: "", document: "",
-  }),
   documents: () => ({ id: uid(), kind: "PDF", title: "New document", note: "Short description.", url: "", placeholder: "" }),
-  entry: entryTemplate,                       // experience + additional experience
-  education: () => ({ degree: "New qualification", school: "Institution", place: "Place", dates: "Dates", bullets: ["New bullet point"] }),
+  entry: entryTemplate,
   skills: () => ({ group: "New skill group", items: [] }),
   bullet: () => "New bullet point",
-  citation: () => "New citation",
+  accordion: () => ({ title: "New row", body: "" }),
+};
+
+const BLOCK_CHOICES = [
+  ["text", "Text"],
+  ["project", "Project (title, media viewer, dropdown rows)"],
+  ["gallery", "Gallery (media only)"],
+  ["entries", "Entry list (title, dates, bullets — like Experience)"],
+  ["tags", "Tag list (like Skills)"],
+  ["buttons", "Row of round icon buttons"],
+  ["documents", "Documents list"],
+];
+function newBlock(type) {
+  const id = uid();
+  switch (type) {
+    case "text": return { id, type, title: "New heading", body: "Write something here." };
+    case "project": return { id, type, title: "New project", media: [], documents: [], buttons: projectButtons(),
+      accordions: [{ title: "Overview", body: "" }, { title: "Tools used / how it was built", body: "" }, { title: "What I learned", body: "" }] };
+    case "gallery": return { id, type, title: "", media: [] };
+    case "entries": return { id, type, title: "", addLabel: "Add entry", items: [entryTemplate()] };
+    case "tags": return { id, type, title: "", groups: [{ group: "New group", items: ["New tag"] }] };
+    case "buttons": return { id, type, buttons: [{ kind: "live", url: "" }] };
+    case "documents": return { id, type, title: "Documents", items: [] };
+    default: throw new Error("Unknown block type");
+  }
+}
+const slugify = (s) => s.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "section";
+
+// Adders open a dialog first; they return true when something was added.
+const ADDERS = {
+  async section(path) {
+    return openDialog({
+      title: "Add section",
+      intro: "A new panel at the end of the page. It appears in the navigation under its title; drag it to move it.",
+      fields: [
+        { name: "title", label: "Section title" },
+        { name: "type", label: "Start with", type: "select", options: BLOCK_CHOICES },
+      ],
+      confirmLabel: "Add section",
+      onSubmit: ({ title, type }) => {
+        if (!title) throw new Error("Enter a title for the section.");
+        const list = getPath(state.data, path);
+        let id = slugify(title);
+        if (id === "overview" || id === "main" || id === "top" || list.some((s) => s.id === id)) id = `${id}-${uid().slice(2, 6)}`;
+        list.push({ id, title, navLabel: "", blocks: [newBlock(type)] });
+        return true;
+      },
+    });
+  },
+  async block(path) {
+    return openDialog({
+      title: "Add block",
+      fields: [{ name: "type", label: "Block type", type: "select", options: BLOCK_CHOICES }],
+      confirmLabel: "Add block",
+      onSubmit: ({ type }) => { getPath(state.data, path).push(newBlock(type)); return true; },
+    });
+  },
+  async button(path) {
+    return openDialog({
+      title: "Add icon button",
+      fields: [
+        { name: "kind", label: "Icon", type: "select", options: [["live", "Website / live link"], ["github", "GitHub"], ["linkedin", "LinkedIn"], ["document", "Document"], ["cv", "CV"], ["email", "Email"]] },
+        { name: "url", label: "Link (or email address)", help: "You can also upload a file later with Edit link." },
+      ],
+      confirmLabel: "Add",
+      onSubmit: ({ kind, url }) => {
+        let value = "";
+        if (kind === "email") {
+          if (url && !EMAIL_RE.test(url)) throw new Error("Enter a valid email address.");
+          value = url;
+        } else if (url) {
+          value = safeUrl(url);
+          if (!value) throw new Error("That address is not allowed. Use https:// or mailto:.");
+        }
+        getPath(state.data, path).push({ kind, url: value });
+        return true;
+      },
+    });
+  },
 };
 
 function itemName(value) {
   if (typeof value === "string") return value.length > 50 ? `${value.slice(0, 50)}…` : value;
-  return value?.title || value?.role || value?.degree || value?.group || "this item";
+  if (value?.type && !value.title && !value.label) return `this ${value.type === "entries" ? "entry list" : value.type} block`;
+  return value?.title || value?.label || value?.role || value?.group || "this item";
+}
+
+// --- Reordering: drag handles (Pointer Events: mouse, pen and touch) + up/down buttons ---------
+function moveItem(path, from, to) {
+  if (from === to) return;
+  const list = getPath(state.data, path);
+  const [moved] = list.splice(from, 1);
+  list.splice(to, 0, moved);
+  if (/\.media$/.test(path)) setIndex(path, slideIndexOf(list, to));
+  changed();
+}
+
+function startDrag(e, item, container, path, axis) {
+  if (e.button !== 0) return;
+  e.preventDefault();
+  const grip = e.currentTarget;
+  grip.setPointerCapture(e.pointerId);
+  const items = [...container.querySelectorAll(":scope > [data-item]")];
+  const from = items.indexOf(item);
+  const others = items.filter((x) => x !== item);
+  const scroller = axis === "x" ? container : null;   // the media strip scrolls sideways
+  const line = el("div", { class: `ed-drop-line ed-drop-line--${axis}`, "data-editor-ui": "", "aria-hidden": "true" });
+  document.body.append(line);
+  item.classList.add("is-dragging");
+  document.body.classList.add("is-reordering");
+  let to = from;
+  let last = { x: e.clientX, y: e.clientY };
+  let raf = 0;
+
+  const place = () => {
+    const p = axis === "x" ? last.x : last.y;
+    const rects = others.map((o) => o.getBoundingClientRect());
+    to = rects.filter((r) => (axis === "x" ? r.left + r.width / 2 : r.top + r.height / 2) < p).length;
+    const cr = container.getBoundingClientRect();
+    let at;
+    if (!rects.length) { const r = item.getBoundingClientRect(); at = axis === "x" ? r.left : r.top; }
+    else if (to < rects.length) at = (axis === "x" ? rects[to].left : rects[to].top) - 5;
+    else at = (axis === "x" ? rects[rects.length - 1].right : rects[rects.length - 1].bottom) + 3;
+    // Positioning via the CSSOM (not style attributes), which the CSP allows
+    if (axis === "x") Object.assign(line.style, { left: `${at}px`, top: `${cr.top}px`, height: `${cr.height}px` });
+    else Object.assign(line.style, { top: `${at}px`, left: `${cr.left}px`, width: `${cr.width}px` });
+  };
+  // Auto-scroll while the pointer is near the edge of the window (or of the media strip)
+  const tick = () => {
+    const edge = 70;
+    let dy = 0;
+    if (last.y < edge) dy = -Math.ceil((edge - last.y) / 3);
+    else if (last.y > innerHeight - edge) dy = Math.ceil((last.y - (innerHeight - edge)) / 3);
+    if (dy) window.scrollBy(0, dy);
+    if (scroller) {
+      const r = scroller.getBoundingClientRect();
+      if (last.x < r.left + 40) scroller.scrollLeft -= 8;
+      else if (last.x > r.right - 40) scroller.scrollLeft += 8;
+    }
+    place();
+    raf = requestAnimationFrame(tick);
+  };
+  const end = (drop) => {
+    cancelAnimationFrame(raf);
+    grip.removeEventListener("pointermove", onMove);
+    grip.removeEventListener("pointerup", onUp);
+    grip.removeEventListener("pointercancel", onCancel);
+    line.remove();
+    item.classList.remove("is-dragging");
+    document.body.classList.remove("is-reordering");
+    if (drop) moveItem(path, from, to);
+  };
+  const onMove = (ev) => { last = { x: ev.clientX, y: ev.clientY }; place(); };
+  const onUp = () => end(true);
+  const onCancel = () => end(false);
+  grip.addEventListener("pointermove", onMove);
+  grip.addEventListener("pointerup", onUp);
+  grip.addEventListener("pointercancel", onCancel);
+  place();
+  raf = requestAnimationFrame(tick);
+}
+
+function sortControls(item, container, path, index, count, axis, remove) {
+  const prevLabel = axis === "x" ? "Move earlier" : "Move up";
+  const nextLabel = axis === "x" ? "Move later" : "Move down";
+  const grip = button("⠿", null, "ed-grip");
+  grip.setAttribute("aria-label", "Drag to move (or use the arrow buttons)");
+  grip.title = "Drag to move";
+  grip.addEventListener("pointerdown", (e) => startDrag(e, item, container, path, axis));
+  const up = button(axis === "x" ? "←" : "↑", () => moveItem(path, index, index - 1), "ed-move");
+  const down = button(axis === "x" ? "→" : "↓", () => moveItem(path, index, index + 1), "ed-move");
+  up.setAttribute("aria-label", prevLabel);
+  down.setAttribute("aria-label", nextLabel);
+  if (index === 0) up.disabled = true;
+  if (index === count - 1) down.disabled = true;
+  return el("span", { class: "ed-sort", "data-editor-ui": "" }, grip, up, down, remove);
 }
 
 function decorateCollection(container) {
   const path = container.dataset.collection;
-  const template = TEMPLATES[container.dataset.template || path];
-  if (!template) return;
-  container.querySelectorAll(":scope > [data-item]").forEach((item) => {
-    const index = Number(item.dataset.item.split(".").pop());
+  if (!path) return;
+  const tpl = container.dataset.template || path;
+  const adder = ADDERS[tpl];
+  const template = TEMPLATES[tpl];
+  const axis = container.dataset.sortable;
+  const items = [...container.querySelectorAll(":scope > [data-item]")];
+  items.forEach((item, index) => {
     const value = getPath(state.data, item.dataset.item);
-    const small = typeof value === "string"; // bullet points / citations: inline ✕, no confirmation
-    const remove = async () => {
-      if (!small && !(await confirmDialog(`Remove "${itemName(value)}"? The change is applied when you press Save.`, "Remove"))) return;
+    const small = typeof value === "string"; // bullet points: inline ✕, no confirmation
+    const removeNow = async () => {
+      if (!small && !(await confirmDialog(`Remove ${tpl === "section" ? "the section " : ""}"${itemName(value)}"? The change is applied when you press Save.`, "Remove"))) return;
       getPath(state.data, path).splice(index, 1);
       changed();
     };
-    const btn = button(small ? "✕" : "Remove", remove, small ? "ed-btn--danger ed-inline" : "ed-btn--danger ed-btn--corner");
-    btn.setAttribute("aria-label", `Remove ${itemName(value)}`);
-    item.append(btn);
+    const remove = button(small ? "✕" : axis ? "✕" : "Remove", removeNow, small || axis ? "ed-btn--danger ed-remove" : "ed-btn--danger ed-btn--corner");
+    remove.setAttribute("aria-label", `Remove ${itemName(value)}`);
+    if (axis) {
+      const controls = sortControls(item, container, path, index, items.length, axis, remove);
+      const summary = item.matches("details") ? item.querySelector(":scope > summary") : null;
+      if (summary) summary.insertBefore(controls, summary.querySelector(".icon--chevron"));
+      else { controls.classList.add("ed-sort--corner"); item.prepend(controls); }
+    } else {
+      if (small) remove.classList.add("ed-inline");
+      item.append(remove);
+    }
   });
-  container.after(el("button", {
+  if ("noAdd" in container.dataset || (!adder && !template)) return;
+  const add = el("button", {
     type: "button",
-    class: "btn btn--ghost ed-add",
-    onclick: () => { getPath(state.data, path).push(template()); changed(); },
-  }, container.dataset.addLabel || "Add"));
+    class: `btn btn--ghost ed-add${tpl === "section" ? " ed-add--section" : ""}`,
+    onclick: async () => {
+      if (adder) { if (await adder(path)) changed(); }
+      else { getPath(state.data, path).push(template()); changed(); }
+    },
+  }, container.dataset.addLabel || "Add");
+  if ("addInside" in container.dataset) container.append(add); else container.after(add);
 }
 
 // "Placeholder" badges can be dismissed once the real content is in
@@ -469,7 +658,7 @@ function decorateBadge(node) {
   node.after(el("span", { class: "ed-inline", "data-editor-ui": "" }, button("Dismiss tag", () => { setPath(state.data, path, ""); changed(); })));
 }
 
-// --- Project media (viewer) ------------------------------------------------------
+// --- Media (viewer) ------------------------------------------------------------------
 /** Index of the first viewer slide for media item `item` (slide decks take one slide per image). */
 function slideIndexOf(list, item, slideInDeck = 0) {
   let n = 0;
@@ -483,40 +672,26 @@ function editableField(labelText, path) {
   return el("span", { class: "ed-alt", "data-editor-ui": "" }, labelText, value);
 }
 
+const MEDIA_LABEL = { image: "Image", slides: "Slides", video: "Video", pdf: "PDF", embed: "Video link" };
+function thumb(m) {
+  const src = m.type === "image" ? m.src : m.type === "slides" ? m.slides?.[0]?.src : m.type === "video" ? m.poster : "";
+  const url = src ? localMediaUrl(src) : "";
+  return url ? el("img", { class: "ed-thumb__img", src: url, alt: "" }) : el("span", { class: "ed-thumb__icon" }, m.type === "pdf" ? "PDF" : "▶");
+}
+
 function decorateViewer(viewer) {
   const path = viewer.dataset.media;
   const list = getPath(state.data, path);
   viewer.hidden = false;
-  if (!list.length) {
-    // Empty viewer: an editable "No media yet" label (ui.noImage) sits above any placeholder badge
-    const none = el("p", { class: "muted viewer__none", "data-edit": "ui.noImage" }, state.data.ui.noImage);
-    viewer.querySelector(".viewer__empty")?.prepend(none);
-    makeEditable(none);
-  }
 
+  // Per-slide extras: alt text, slide-deck order, video poster
   viewer.querySelectorAll(".viewer__slide").forEach((slideEl) => {
     const itemPath = slideEl.dataset.itemPath;
     const i = Number(itemPath.split(".").pop());
     const item = list[i];
     const deckPath = slideEl.dataset.slidePath;            // only for slide-deck images
     const j = deckPath ? Number(deckPath.split(".").pop()) : 0;
-    const move = (to) => {
-      const [moved] = list.splice(i, 1);
-      list.splice(to, 0, moved);
-      setIndex(path, slideIndexOf(list, to));
-      changed();
-    };
-    const bar = el("div", { class: "ed-media", "data-editor-ui": "" },
-      el("span", { class: "ed-media__group" },
-        i > 0 ? button("↑ Earlier", () => move(i - 1)) : null,
-        i < list.length - 1 ? button("↓ Later", () => move(i + 1)) : null,
-        button(item.type === "slides" ? "Remove deck" : "Remove", async () => {
-          if (!(await confirmDialog(`Remove this ${item.type === "slides" ? "slide deck" : item.type}? The change is applied when you press Save.`, "Remove"))) return;
-          list.splice(i, 1);
-          setIndex(path, Math.max(0, slideIndexOf(list, Math.min(i, list.length - 1))));
-          changed();
-        }, "ed-btn--danger")));
-
+    const bar = el("div", { class: "ed-media", "data-editor-ui": "" });
     if (deckPath) {
       const slides = item.slides;
       const moveSlide = (to) => {
@@ -537,12 +712,17 @@ function decorateViewer(viewer) {
         button("+ Add slides", () => addSlides(path, i))));
     }
     if (item.type === "video") bar.append(button(item.poster ? "Replace poster" : "Add poster image", () => chooseImage(`${itemPath}.poster`)));
-
     const altPath = deckPath ? `${deckPath}.alt` : `${itemPath}.alt`;
     const altLabel = item.type === "image" || deckPath ? "Alt text: " : "Description (for screen readers): ";
-    slideEl.querySelector(".viewer__frame").after(bar, editableField(altLabel, altPath));
+    slideEl.querySelector(".viewer__frame").after(...(bar.childElementCount ? [bar] : []), editableField(altLabel, altPath));
   });
 
+  // Media strip: every item as a thumbnail, draggable (or ← → buttons) to reorder, ✕ to delete
+  if (list.length) {
+    viewer.append(el("div", { class: "ed-tray", "data-editor-ui": "", "data-collection": path, "data-sortable": "x", "data-template": "media", "data-no-add": "" },
+      list.map((m, k) => el("div", { class: "ed-thumb", "data-item": `${path}.${k}` },
+        thumb(m), el("span", { class: "ed-thumb__label" }, `${k + 1}. ${MEDIA_LABEL[m.type] || m.type}`)))));
+  }
   viewer.append(el("button", { type: "button", class: "btn btn--ghost ed-add", onclick: () => addMedia(path) }, "Add media"));
 }
 

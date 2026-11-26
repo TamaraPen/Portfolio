@@ -57,7 +57,7 @@ Copy the token once; store it in a password manager. *(GitHub's menus change occ
 ## Using the editor
 
 1. Open the live site → click the round **pencil** button in the top-right corner (tooltip: "sign in to edit") → paste the token. It is checked against GitHub (valid, and allowed to write to this repo).
-2. Edit mode switches on automatically: every piece of text becomes a field, and a bar with Save / Export / Log out appears at the bottom. The pencil turns into a red **EXIT** button. EXIT leaves edit mode but keeps you signed in for this tab (it asks Save / Discard / Cancel if there are unsaved changes); the pencil brings you back. You can then:
+2. Edit mode starts only when you click the pencil (a page refresh never starts it): every piece of text becomes a field, and a bar with Save / Export / Log out appears at the bottom. The pencil turns into a red **EXIT** button. EXIT leaves edit mode but keeps you signed in for this tab (it asks Save / Discard / Cancel if there are unsaved changes); the pencil brings you back. You can then:
    - click any text and type (bio, headings, jobs, education, project/document notes, contact details);
    - **Add/Replace photo** (profile photo, project images);
    - **+ Add tag** / ✕ on skill tags and project tags;
@@ -69,6 +69,10 @@ Copy the token once; store it in a password manager. *(GitHub's menus change occ
 5. **Log out** clears the token. Closing the tab also clears it.
 
 Limits (`config.js` → `uploadLimitsMB`): images 5 MB, PDFs 15 MB, videos (mp4/webm) 25 MB, other documents 15 MB. Longer videos: upload to YouTube as "Unlisted" and paste the link. Images png/jpg/webp/gif; documents pdf/docx/pptx/xlsx/csv/txt/md/json/zip. SVG and executables are refused. GitHub blocks files over 100 MB and the whole Pages site must stay under 1 GB.
+
+**Sections and blocks** (edit mode): everything below the Overview is a list of sections in `data.json` (`sections`), each made of blocks: text, project, gallery, entry list, tag list, icon-button row, documents list. Use **Add section** (bottom of the page) and **Add block** (inside a section). Drag the ⠿ handle to move sections, blocks, dropdown rows and media items (mouse or touch), or use the ↑ ↓ / ← → buttons. The navigation follows the section order. Deleting a section asks first. Changes are saved with **Save changes** as usual.
+
+**Project panels**: title, media viewer (left) and dropdown rows (right, all closed until clicked). Rows with no text are hidden from visitors. "View full documents" appears when a project has documents; PDFs and images open full screen.
 
 **Project media** (edit mode → a project's viewer → **Add media**): one image; several images at once (becomes a slide deck you can reorder); one video; one PDF; or a YouTube/Vimeo link (shown via youtube-nocookie.com / player.vimeo.com). PowerPoint files can't be shown in a browser: export them as PDF or as slide images first. On phones, PDFs open full size in the browser's own viewer (embedded PDFs on iPhone only show the first page).
 

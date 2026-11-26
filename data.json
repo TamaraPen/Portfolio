@@ -1,15 +1,13 @@
 {
-  "_readme": "Site content. Edited by the owner via the on-page editor (Save commits this file). Items with a non-empty \"placeholder\" field (or a *Placeholder field) show a visible 'Placeholder' badge on the page.",
+  "_readme": "Site content. Edited by the owner via the on-page editor (Save commits this file). Overview = profile; everything else is data.sections (each a list of blocks), shown in order and listed in the nav in that order.",
   "_placeholders": [
     "profile.photo — [PLACEHOLDER: no photo added; an initials avatar is shown]",
     "profile.github — [PLACEHOLDER: no GitHub profile link yet]",
     "profile.cv — [PLACEHOLDER: no CV file uploaded yet]",
     "documents[*] — [PLACEHOLDER: no real files attached yet; upload PDFs in edit mode]",
-    "projects[*].media, tools, learned — [PLACEHOLDER: add media and write-ups in edit mode]",
-    "projects[crwad] outcome and projects[sample-data] — [PLACEHOLDER: details to be completed]",
     "skills groups other than 'Key skills' — derived from LinkedIn and CV bullet points; review before publishing"
   ],
-  "version": 3,
+  "version": 4,
   "ui": {
     "brand": "Tamara Pen",
     "viewProjects": "View projects",
@@ -18,52 +16,17 @@
     "contactLinkedIn": "LinkedIn",
     "contactLocation": "Location",
     "viewProfile": "View profile",
-    "openFile": "Open file",
+    "openFile": "Open",
     "fileMissing": "File not added yet",
-    "noImage": "No media yet",
+    "noImage": "No image",
     "footer": "Tamara Pen · Biochemistry",
     "backToTop": "Back to top",
+    "navOverview": "Overview",
     "accOverview": "Overview",
     "accTools": "Tools used / how it was built",
     "accLearned": "What I learned",
     "accDocs": "View full documents",
     "openFullSize": "Open PDF full size"
-  },
-  "nav": [
-    {
-      "id": "overview",
-      "label": "Overview"
-    },
-    {
-      "id": "skills",
-      "label": "Skills"
-    },
-    {
-      "id": "experience",
-      "label": "Experience"
-    },
-    {
-      "id": "education",
-      "label": "Education"
-    },
-    {
-      "id": "work",
-      "label": "Projects & Documents"
-    },
-    {
-      "id": "contact",
-      "label": "Contact"
-    }
-  ],
-  "headings": {
-    "skills": "Skills",
-    "experience": "Employment",
-    "additional": "Additional experience",
-    "education": "Education",
-    "work": "Projects & Documents",
-    "projects": "Projects",
-    "documents": "Documents",
-    "contact": "Contact"
   },
   "profile": {
     "name": "Tamara Pen",
@@ -82,326 +45,410 @@
     "cv": "assets/uploads/1795716152293-cvtamarapen.pdf",
     "cvPlaceholder": ""
   },
-  "skills": [
+  "sections": [
     {
-      "group": "Key skills",
-      "items": [
-        "Leadership",
-        "Research",
-        "Organisation",
-        "Time Management",
-        "Team Collaboration",
-        "Adaptability",
-        "Communication"
+      "id": "skills",
+      "title": "Skills",
+      "navLabel": "Skills",
+      "blocks": [
+        {
+          "id": "skill-groups",
+          "type": "tags",
+          "title": "",
+          "groups": [
+            {
+              "group": "Key skills",
+              "items": [
+                "Leadership",
+                "Research",
+                "Organisation",
+                "Time Management",
+                "Team Collaboration",
+                "Adaptability",
+                "Communication"
+              ]
+            },
+            {
+              "group": "Lab & research",
+              "items": [
+                "Cell culture",
+                "Toxicity assays",
+                "Fluorescent & luminescent plate assays",
+                "Cell imaging",
+                "RNA isolation",
+                "PCR / RT-PCR",
+                "Plasmid transfection",
+                "Flow cytometry",
+                "Experimental design",
+                "IACUC & animal welfare training"
+              ]
+            },
+            {
+              "group": "Data & tools",
+              "items": [
+                "R",
+                "Excel",
+                "Tableau",
+                "Literature review",
+                "Canva"
+              ]
+            },
+            {
+              "group": "Science communication",
+              "items": [
+                "Translating complex concepts",
+                "Research presentation",
+                "Poster design",
+                "Graphic design",
+                "Public engagement"
+              ]
+            }
+          ]
+        }
       ]
     },
     {
-      "group": "Lab & research",
-      "items": [
-        "Cell culture",
-        "Toxicity assays",
-        "Fluorescent & luminescent plate assays",
-        "Cell imaging",
-        "RNA isolation",
-        "PCR / RT-PCR",
-        "Plasmid transfection",
-        "Flow cytometry",
-        "Experimental design",
-        "IACUC & animal welfare training"
+      "id": "experience",
+      "title": "Employment",
+      "navLabel": "Experience",
+      "blocks": [
+        {
+          "id": "employment",
+          "type": "entries",
+          "title": "",
+          "addLabel": "Add job",
+          "items": [
+            {
+              "role": "Research Scholar",
+              "org": "Koci Laboratory, NCSU",
+              "place": "USA",
+              "dates": "Oct 2024 – Aug 2025",
+              "summary": "",
+              "bullets": [
+                "Independently investigated how beta-carotene influences T cell metabolism as a potential microbiome-immune communication factor, managing experimental planning and project timelines.",
+                "Performed cell-based techniques including cell culture, toxicity assays, fluorescent and luminescent plate-based assays, and cell imaging.",
+                "Contributed to wider research projects using RNA isolation, PCR, plasmid transfections, and flow cytometry.",
+                "Analysed, visualised, and presented experimental data using R, Excel, and Tableau, supporting interpretation and communication of research findings.",
+                "Participated in IACUC & Animal Welfare Courses in preparation for an animal trial.",
+                "Reviewed scientific literature to inform experimental development and contributed to conference abstracts and presentations.",
+                "Troubleshot experimental challenges, refined protocols, and managed competing laboratory responsibilities independently."
+              ]
+            },
+            {
+              "role": "Team Leader",
+              "org": "Ole & Steen",
+              "place": "UK",
+              "dates": "Oct 2022 – Nov 2026",
+              "summary": "",
+              "bullets": [
+                "Initially worked as a Team Member (2022) before being promoted to Team Leader within my first year.",
+                "Onboarded, trained, and managed new employees across multiple branches, contributing to team development.",
+                "Assisted management in daily operations including, staff scheduling, internal communication and handling stock management.",
+                "Delivered exceptional customer service against store KPI’s whilst upselling effectively to increase sales and customer loyalty in a fast-paced environment."
+              ]
+            },
+            {
+              "role": "Swim Teacher & Lifeguard",
+              "org": "Everyone Active & Fun Flippers",
+              "place": "UK",
+              "dates": "March 2019 – Jul 2024",
+              "summary": "",
+              "bullets": [
+                "Worked for multiple swim schools during this period.",
+                "Delivered structured, differentiated lessons to adults, children, and individuals with learning disabilities to support their growing confidence in water.",
+                "Maintained safety standards and responded effectively to incidents through first-aid and emergency-response training."
+              ]
+            }
+          ]
+        },
+        {
+          "id": "additional",
+          "type": "entries",
+          "title": "Additional experience",
+          "addLabel": "Add additional experience",
+          "items": [
+            {
+              "role": "MARS Work Experience",
+              "org": "",
+              "place": "Slough, UK",
+              "dates": "2019",
+              "summary": "Participated in a program where I worked within a team to research, design, and produce a product for MARS end-to-end, including:",
+              "bullets": [
+                "Product & Concept: Market research and concept development.",
+                "Commercial & Operations: Marketing, sales, finance, procurement, and supply chain from factory to store."
+              ]
+            }
+          ]
+        }
       ]
     },
     {
-      "group": "Data & tools",
-      "items": [
-        "R",
-        "Excel",
-        "Tableau",
-        "Literature review",
-        "Canva"
+      "id": "education",
+      "title": "Education",
+      "navLabel": "Education",
+      "blocks": [
+        {
+          "id": "education-list",
+          "type": "entries",
+          "title": "",
+          "addLabel": "Add education",
+          "items": [
+            {
+              "role": "BSc (Hons) Biochemistry",
+              "org": "University of Surrey",
+              "place": "UK",
+              "dates": "2021 – 2026",
+              "summary": "",
+              "bullets": [
+                "Completed a Foundation Year (2021-2022) and a Professional Training Year (2024-2025), achieving a 2:1.",
+                "Explored the fundamental processes of life at a cellular level and investigated how technology and genetic principles can be used to tackle global challenges.",
+                "Developed an interest in immunology, specifically T-cell differentiation and activation and intercellular immune signalling. This led to me pursue a Professional Training Year as a Research Scholar at Koci Laboratory, with a focus on host-microbe interactions in the gut.",
+                "Shared my Professional Training Year experience with prospective placement students, encouraging them to consider placement year opportunities and highlighting the professional and academic benefits.",
+                "Dissertation (Grant Proposal): “Clinically Resolved versus Spontaneously Resolved Atopic Dermatitis: The Role of Th2-Priming DCs and Epithelial Cytokine Signalling”."
+              ]
+            }
+          ]
+        }
       ]
     },
     {
-      "group": "Science communication",
-      "items": [
-        "Translating complex concepts",
-        "Research presentation",
-        "Poster design",
-        "Graphic design",
-        "Public engagement"
+      "id": "work",
+      "title": "Projects & Documents",
+      "navLabel": "Projects & Documents",
+      "blocks": [
+        {
+          "id": "projects-intro",
+          "type": "text",
+          "title": "Projects",
+          "body": ""
+        },
+        {
+          "id": "psa2025",
+          "type": "project",
+          "title": "Beta-carotene and Lipid Metabolism as Mediators of Probiotic-induced Immunometabolism Modulation",
+          "media": [],
+          "accordions": [
+            {
+              "title": "Overview",
+              "body": "Poster talk presented in a comic-themed format at my first national conference, as one of about 20 participating undergraduates. Supervised by the Koci Laboratory team at NC State.\n\nPoultry Science Association (PSA) Annual Meeting · Raleigh, NC · 2025\n\nPresented: “Beta-carotene and Lipid Metabolism as Mediators of Probiotic-induced Immunometabolism Modulation”. 2025 Poultry Science Association Annual Meeting Abstract Book, Abstract 423P, p. 194.\nContributed: “Probiotic-induced microbiome modulation alters immune cell metabolism through the mevalonate pathway”. 2025 Poultry Science Association Annual Meeting Abstract Book, Abstract 3, p. 5."
+            },
+            {
+              "title": "Tools used / how it was built",
+              "body": ""
+            },
+            {
+              "title": "What I learned",
+              "body": ""
+            }
+          ],
+          "documents": [],
+          "buttons": [
+            {
+              "kind": "github",
+              "url": ""
+            },
+            {
+              "kind": "live",
+              "url": ""
+            },
+            {
+              "kind": "document",
+              "url": ""
+            }
+          ]
+        },
+        {
+          "id": "microbiome2025",
+          "type": "project",
+          "title": "Microbiome-induced Communication Through Serum Lipids: Probiotic Effects on the Mevalonate Pathway and Immune Cell Energy",
+          "media": [],
+          "accordions": [
+            {
+              "title": "Overview",
+              "body": "Poster talk presented at the North Carolina Biotechnology Center, linking microbiome research, immunology and metabolism.\n\nNorth Carolina Microbiome Symposium · Durham, NC · 2025"
+            },
+            {
+              "title": "Tools used / how it was built",
+              "body": ""
+            },
+            {
+              "title": "What I learned",
+              "body": ""
+            }
+          ],
+          "documents": [],
+          "buttons": [
+            {
+              "kind": "github",
+              "url": ""
+            },
+            {
+              "kind": "live",
+              "url": ""
+            },
+            {
+              "kind": "document",
+              "url": ""
+            }
+          ]
+        },
+        {
+          "id": "crwad",
+          "type": "project",
+          "title": "Development of Modular Multiplex RT-PCR Assay to Allow For a Systems Approach to Poultry Health",
+          "media": [],
+          "accordions": [
+            {
+              "title": "Overview",
+              "body": "Contributed to collaborative research involving molecular diagnostics, RT-PCR and poultry health.\n\nConference of Research Workers in Animal Diseases (CRWAD) · Chicago, IL · 2025\n\nContributed: “Development of Modular Multiplex RT-PCR Assay to Allow For a Systems Approach to Poultry Health”. Conference of Research Workers in Animal Diseases (CRWAD) 2025, Abstract P062, p. 64."
+            },
+            {
+              "title": "Tools used / how it was built",
+              "body": ""
+            },
+            {
+              "title": "What I learned",
+              "body": ""
+            }
+          ],
+          "documents": [],
+          "buttons": [
+            {
+              "kind": "github",
+              "url": ""
+            },
+            {
+              "kind": "live",
+              "url": ""
+            },
+            {
+              "kind": "document",
+              "url": ""
+            }
+          ]
+        },
+        {
+          "id": "barth",
+          "type": "project",
+          "title": "Barth Syndrome: Chaos in the Powerhouse",
+          "media": [],
+          "accordions": [
+            {
+              "title": "Overview",
+              "body": "Group project explaining how TAZ mutations disrupt mitochondrial cardiolipin remodelling and cellular energy production. Produced a technical leaflet, a lay leaflet and an interactive comic, with guidance from Barth Syndrome UK.\n\nGenetics module information fair · University of Surrey"
+            },
+            {
+              "title": "Tools used / how it was built",
+              "body": ""
+            },
+            {
+              "title": "What I learned",
+              "body": ""
+            }
+          ],
+          "documents": [],
+          "buttons": [
+            {
+              "kind": "github",
+              "url": ""
+            },
+            {
+              "kind": "live",
+              "url": ""
+            },
+            {
+              "kind": "document",
+              "url": ""
+            }
+          ]
+        },
+        {
+          "id": "dissertation",
+          "type": "project",
+          "title": "Clinically Resolved versus Spontaneously Resolved Atopic Dermatitis: The Role of Th2-Priming DCs and Epithelial Cytokine Signalling",
+          "media": [],
+          "accordions": [
+            {
+              "title": "Overview",
+              "body": "Dissertation written as a grant proposal on immune mechanisms distinguishing clinically resolved from spontaneously resolved atopic dermatitis.\n\nBSc (Hons) Biochemistry · University of Surrey"
+            },
+            {
+              "title": "Tools used / how it was built",
+              "body": ""
+            },
+            {
+              "title": "What I learned",
+              "body": ""
+            }
+          ],
+          "documents": [],
+          "buttons": [
+            {
+              "kind": "github",
+              "url": ""
+            },
+            {
+              "kind": "live",
+              "url": ""
+            },
+            {
+              "kind": "document",
+              "url": ""
+            }
+          ]
+        },
+        {
+          "id": "documents",
+          "type": "documents",
+          "title": "Documents",
+          "items": [
+            {
+              "id": "doc-psa-poster",
+              "kind": "PDF",
+              "title": "PSA 2025 poster",
+              "note": "Comic-themed poster for the Poultry Science Association Annual Meeting.",
+              "url": "",
+              "placeholder": "Placeholder: upload the poster PDF"
+            },
+            {
+              "id": "doc-leaflet-technical",
+              "kind": "PDF",
+              "title": "Barth syndrome technical leaflet",
+              "note": "Leaflet aimed at a scientific audience.",
+              "url": "",
+              "placeholder": "Placeholder: upload the leaflet"
+            },
+            {
+              "id": "doc-leaflet-lay",
+              "kind": "PDF",
+              "title": "Barth syndrome lay leaflet",
+              "note": "Patient-friendly leaflet explaining the condition.",
+              "url": "",
+              "placeholder": "Placeholder: upload the leaflet"
+            },
+            {
+              "id": "doc-sop-sample",
+              "kind": "SOP",
+              "title": "Sample protocol / SOP",
+              "note": "Example of a lab protocol written for new team members.",
+              "url": "",
+              "placeholder": "Placeholder: sample entry, upload a non-confidential protocol or remove"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "contact",
+      "title": "Contact",
+      "navLabel": "Contact",
+      "blocks": [
+        {
+          "id": "contact-details",
+          "type": "contact",
+          "intro": "Questions about my work, or interested in discussing roles? Get in touch by email or LinkedIn."
+        }
       ]
     }
-  ],
-  "experience": [
-    {
-      "role": "Research Scholar",
-      "org": "Koci Laboratory, NCSU",
-      "place": "USA",
-      "dates": "Oct 2024 – Aug 2025",
-      "summary": "",
-      "bullets": [
-        "Independently investigated how beta-carotene influences T cell metabolism as a potential microbiome-immune communication factor, managing experimental planning and project timelines.",
-        "Performed cell-based techniques including cell culture, toxicity assays, fluorescent and luminescent plate-based assays, and cell imaging.",
-        "Contributed to wider research projects using RNA isolation, PCR, plasmid transfections, and flow cytometry.",
-        "Analysed, visualised, and presented experimental data using R, Excel, and Tableau, supporting interpretation and communication of research findings.",
-        "Participated in IACUC & Animal Welfare Courses in preparation for an animal trial.",
-        "Reviewed scientific literature to inform experimental development and contributed to conference abstracts and presentations.",
-        "Troubleshot experimental challenges, refined protocols, and managed competing laboratory responsibilities independently."
-      ]
-    },
-    {
-      "role": "Team Leader",
-      "org": "Ole & Steen",
-      "place": "UK",
-      "dates": "Oct 2022 – Nov 2026",
-      "summary": "",
-      "bullets": [
-        "Initially worked as a Team Member (2022) before being promoted to Team Leader within my first year.",
-        "Onboarded, trained, and managed new employees across multiple branches, contributing to team development.",
-        "Assisted management in daily operations including, staff scheduling, internal communication and handling stock management.",
-        "Delivered exceptional customer service against store KPI’s whilst upselling effectively to increase sales and customer loyalty in a fast-paced environment."
-      ]
-    },
-    {
-      "role": "Swim Teacher & Lifeguard",
-      "org": "Everyone Active & Fun Flippers",
-      "place": "UK",
-      "dates": "March 2019 – Jul 2024",
-      "summary": "",
-      "bullets": [
-        "Worked for multiple swim schools during this period.",
-        "Delivered structured, differentiated lessons to adults, children, and individuals with learning disabilities to support their growing confidence in water.",
-        "Maintained safety standards and responded effectively to incidents through first-aid and emergency-response training."
-      ]
-    }
-  ],
-  "additional": [
-    {
-      "role": "MARS Work Experience",
-      "org": "",
-      "place": "Slough, UK",
-      "dates": "2019",
-      "summary": "Participated in a program where I worked within a team to research, design, and produce a product for MARS end-to-end, including:",
-      "bullets": [
-        "Product & Concept: Market research and concept development.",
-        "Commercial & Operations: Marketing, sales, finance, procurement, and supply chain from factory to store."
-      ]
-    }
-  ],
-  "education": [
-    {
-      "degree": "BSc (Hons) Biochemistry",
-      "school": "University of Surrey",
-      "place": "UK",
-      "dates": "2021 – 2026",
-      "bullets": [
-        "Completed a Foundation Year (2021-2022) and a Professional Training Year (2024-2025), achieving a 2:1.",
-        "Explored the fundamental processes of life at a cellular level and investigated how technology and genetic principles can be used to tackle global challenges.",
-        "Developed an interest in immunology, specifically T-cell differentiation and activation and intercellular immune signalling. This led to me pursue a Professional Training Year as a Research Scholar at Koci Laboratory, with a focus on host-microbe interactions in the gut.",
-        "Shared my Professional Training Year experience with prospective placement students, encouraging them to consider placement year opportunities and highlighting the professional and academic benefits.",
-        "Dissertation (Grant Proposal): “Clinically Resolved versus Spontaneously Resolved Atopic Dermatitis: The Role of Th2-Priming DCs and Epithelial Cytokine Signalling”."
-      ]
-    }
-  ],
-  "projects": [
-    {
-      "id": "psa2025",
-      "kind": "Conference poster",
-      "meta": "Poultry Science Association (PSA) Annual Meeting · Raleigh, NC · 2025",
-      "title": "Beta-carotene and Lipid Metabolism as Mediators of Probiotic-induced Immunometabolism Modulation",
-      "summary": "Poster talk presented in a comic-themed format at my first national conference, as one of about 20 participating undergraduates. Supervised by the Koci Laboratory team at NC State.",
-      "tools": "",
-      "toolsPlaceholder": "Placeholder: list the tools and methods used",
-      "learned": "",
-      "learnedPlaceholder": "Placeholder: add what you learned",
-      "citations": [
-        "Presented: “Beta-carotene and Lipid Metabolism as Mediators of Probiotic-induced Immunometabolism Modulation”. 2025 Poultry Science Association Annual Meeting Abstract Book, Abstract 423P, p. 194.",
-        "Contributed: “Probiotic-induced microbiome modulation alters immune cell metabolism through the mevalonate pathway”. 2025 Poultry Science Association Annual Meeting Abstract Book, Abstract 3, p. 5."
-      ],
-      "tags": [
-        "Immunometabolism",
-        "T cell metabolism",
-        "Probiotics",
-        "Poster"
-      ],
-      "image": "",
-      "imageAlt": "",
-      "media": [],
-      "mediaPlaceholder": "Placeholder: add photos, slides, a PDF or a video",
-      "links": [],
-      "placeholder": "",
-      "github": "",
-      "live": "",
-      "document": ""
-    },
-    {
-      "id": "microbiome2025",
-      "kind": "Conference poster",
-      "meta": "North Carolina Microbiome Symposium · Durham, NC · 2025",
-      "title": "Microbiome-induced Communication Through Serum Lipids: Probiotic Effects on the Mevalonate Pathway and Immune Cell Energy",
-      "summary": "Poster talk presented at the North Carolina Biotechnology Center, linking microbiome research, immunology and metabolism.",
-      "tools": "",
-      "toolsPlaceholder": "Placeholder: list the tools and methods used",
-      "learned": "",
-      "learnedPlaceholder": "Placeholder: add what you learned",
-      "citations": [],
-      "tags": [
-        "Microbiome",
-        "Immunometabolism",
-        "Serum lipids"
-      ],
-      "image": "",
-      "imageAlt": "",
-      "media": [],
-      "mediaPlaceholder": "Placeholder: add photos, slides, a PDF or a video",
-      "links": [],
-      "placeholder": "",
-      "github": "",
-      "live": "",
-      "document": ""
-    },
-    {
-      "id": "crwad",
-      "kind": "Conference presentation",
-      "meta": "Conference of Research Workers in Animal Diseases (CRWAD) · Chicago, IL · 2025",
-      "title": "Development of Modular Multiplex RT-PCR Assay to Allow For a Systems Approach to Poultry Health",
-      "summary": "Contributed to collaborative research involving molecular diagnostics, RT-PCR and poultry health.",
-      "tools": "",
-      "toolsPlaceholder": "Placeholder: list the tools and methods used",
-      "learned": "",
-      "learnedPlaceholder": "Placeholder: add what you learned",
-      "citations": [
-        "Contributed: “Development of Modular Multiplex RT-PCR Assay to Allow For a Systems Approach to Poultry Health”. Conference of Research Workers in Animal Diseases (CRWAD) 2025, Abstract P062, p. 64."
-      ],
-      "tags": [
-        "Molecular diagnostics",
-        "RT-PCR",
-        "Poultry health"
-      ],
-      "image": "",
-      "imageAlt": "",
-      "media": [],
-      "mediaPlaceholder": "Placeholder: add photos, slides, a PDF or a video",
-      "links": [],
-      "placeholder": "Placeholder: add your role and a one-line outcome",
-      "github": "",
-      "live": "",
-      "document": ""
-    },
-    {
-      "id": "barth",
-      "kind": "Science communication",
-      "meta": "Genetics module information fair · University of Surrey",
-      "title": "Barth Syndrome: Chaos in the Powerhouse",
-      "summary": "Group project explaining how TAZ mutations disrupt mitochondrial cardiolipin remodelling and cellular energy production. Produced a technical leaflet, a lay leaflet and an interactive comic, with guidance from Barth Syndrome UK.",
-      "tools": "",
-      "toolsPlaceholder": "Placeholder: list the tools and methods used",
-      "learned": "",
-      "learnedPlaceholder": "Placeholder: add what you learned",
-      "citations": [],
-      "tags": [
-        "Genetics",
-        "Science communication",
-        "Graphic design",
-        "Public engagement"
-      ],
-      "image": "",
-      "imageAlt": "",
-      "media": [],
-      "mediaPlaceholder": "Placeholder: add photos, slides, a PDF or a video",
-      "links": [],
-      "placeholder": "",
-      "github": "",
-      "live": "",
-      "document": ""
-    },
-    {
-      "id": "dissertation",
-      "kind": "Grant proposal (dissertation)",
-      "meta": "BSc (Hons) Biochemistry · University of Surrey",
-      "title": "Clinically Resolved versus Spontaneously Resolved Atopic Dermatitis: The Role of Th2-Priming DCs and Epithelial Cytokine Signalling",
-      "summary": "Dissertation written as a grant proposal on immune mechanisms distinguishing clinically resolved from spontaneously resolved atopic dermatitis.",
-      "tools": "",
-      "toolsPlaceholder": "Placeholder: list the tools and methods used",
-      "learned": "",
-      "learnedPlaceholder": "Placeholder: add what you learned",
-      "citations": [],
-      "tags": [
-        "Immunology",
-        "Grant writing",
-        "Literature review"
-      ],
-      "image": "",
-      "imageAlt": "",
-      "media": [],
-      "mediaPlaceholder": "Placeholder: add photos, slides, a PDF or a video",
-      "links": [],
-      "placeholder": "",
-      "github": "",
-      "live": "",
-      "document": ""
-    },
-    {
-      "id": "sample-data",
-      "kind": "Data write-up",
-      "meta": "Sample entry",
-      "title": "Plate-assay data analysis summary",
-      "summary": "Short write-up of how experimental data were cleaned, analysed and visualised (R, Excel, Tableau), with key figures.",
-      "tools": "",
-      "toolsPlaceholder": "Placeholder: list the tools and methods used",
-      "learned": "",
-      "learnedPlaceholder": "Placeholder: add what you learned",
-      "citations": [],
-      "tags": [
-        "R",
-        "Tableau",
-        "Data visualisation"
-      ],
-      "image": "",
-      "imageAlt": "",
-      "media": [],
-      "mediaPlaceholder": "Placeholder: add photos, slides, a PDF or a video",
-      "links": [],
-      "placeholder": "Placeholder: sample entry, replace with a real analysis or remove",
-      "github": "",
-      "live": "",
-      "document": ""
-    }
-  ],
-  "documents": [
-    {
-      "id": "doc-psa-poster",
-      "kind": "PDF",
-      "title": "PSA 2025 poster",
-      "note": "Comic-themed poster for the Poultry Science Association Annual Meeting.",
-      "url": "",
-      "placeholder": "Placeholder: upload the poster PDF"
-    },
-    {
-      "id": "doc-leaflet-technical",
-      "kind": "PDF",
-      "title": "Barth syndrome technical leaflet",
-      "note": "Leaflet aimed at a scientific audience.",
-      "url": "",
-      "placeholder": "Placeholder: upload the leaflet"
-    },
-    {
-      "id": "doc-leaflet-lay",
-      "kind": "PDF",
-      "title": "Barth syndrome lay leaflet",
-      "note": "Patient-friendly leaflet explaining the condition.",
-      "url": "",
-      "placeholder": "Placeholder: upload the leaflet"
-    },
-    {
-      "id": "doc-sop-sample",
-      "kind": "SOP",
-      "title": "Sample protocol / SOP",
-      "note": "Example of a lab protocol written for new team members.",
-      "url": "",
-      "placeholder": "Placeholder: sample entry, upload a non-confidential protocol or remove"
-    }
-  ],
-  "contact": {
-    "intro": "Questions about my work, or interested in discussing roles? Get in touch by email or LinkedIn."
-  }
+  ]
 }

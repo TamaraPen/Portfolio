@@ -47,6 +47,17 @@ const step = (viewer, by) => show(viewer, indexOf(viewer) + by);
 const editing = () => document.body.classList.contains("editing");
 
 // --- Inline viewer -------------------------------------------------------------
+/** Everything in a viewer that the lightbox can show (images, slide images, PDFs), in order. */
+function lightboxItems(viewer) {
+  return slidesOf(viewer).flatMap((slide, slideIndex) => {
+    const img = slide.querySelector("img[data-lightbox]");
+    if (img?.getAttribute("src")) return [{ type: "image", src: img.currentSrc || img.src, alt: img.alt, slide, slideIndex }];
+    const pdf = slide.querySelector(".viewer__pdf[data-pdf-src]");
+    if (pdf) return [{ type: "pdf", src: pdf.dataset.pdfSrc, title: pdf.dataset.pdfTitle || "Document", slide, slideIndex }];
+    return [];
+  });
+}
+
 document.addEventListener("click", (e) => {
   const btn = e.target.closest("[data-viewer-step], [data-viewer-go]");
   if (btn) {
@@ -55,8 +66,26 @@ document.addEventListener("click", (e) => {
     else show(viewer, Number(btn.dataset.viewerGo));
     return;
   }
-  const img = e.target.closest("[data-viewer] img[data-lightbox]");
-  if (img && !editing()) openLightbox(img);
+  if (editing()) return;
+  // Image, slide or PDF in a viewer -> full-screen lightbox
+  const opener = e.target.closest("[data-viewer] img[data-lightbox], [data-viewer] [data-lightbox-open]");
+  if (opener) {
+    const viewer = opener.closest("[data-viewer]");
+    const items = lightboxItems(viewer);
+    const slide = opener.closest(".viewer__slide");
+    openLightbox(items, Math.max(0, items.findIndex((it) => it.slide === slide)), viewer);
+    return;
+  }
+  // "View full documents": PDFs and images open in the lightbox; other files download as usual
+  const doc = e.target.closest("a[data-doc-lightbox]");
+  if (doc) {
+    e.preventDefault();
+    const links = [...doc.closest("ul").querySelectorAll("a[data-doc-lightbox]")];
+    const items = links.map((a) => (a.dataset.docLightbox === "pdf"
+      ? { type: "pdf", src: a.getAttribute("href"), title: a.dataset.docTitle || "Document" }
+      : { type: "image", src: a.getAttribute("href"), alt: a.dataset.docTitle || "" }));
+    openLightbox(items, links.indexOf(doc), null);
+  }
 });
 
 document.addEventListener("keydown", (e) => {
@@ -92,20 +121,18 @@ document.addEventListener(RENDERED_EVENT, () => {
 });
 
 // --- Lightbox (native <dialog>: Esc closes, focus is trapped and restored) -----------
-function openLightbox(startImg) {
-  const viewer = startImg.closest("[data-viewer]");
-  const imgs = [...viewer.querySelectorAll("img[data-lightbox]")].filter((i) => i.getAttribute("src"));
-  let index = Math.max(0, imgs.indexOf(startImg));
-
-  const pic = el("img", { class: "lightbox__img", alt: "" });
-  const frame = el("div", { class: "lightbox__frame" }, pic);
+function openLightbox(items, start, viewer) {
+  if (!items.length) return;
+  let index = start;
+  const opener = document.activeElement;
+  const frame = el("div", { class: "lightbox__frame" });
   const btn = (cls, label, icon, onclick) => el("button", { type: "button", class: `lightbox__btn ${cls}`, "aria-label": label, onclick }, icon);
   const zoom = btn("lightbox__zoom", "Zoom to 100%", svgZoom(), () => setZoom(!frame.classList.contains("is-zoomed")));
-  const many = imgs.length > 1;
-  const dlg = el("dialog", { class: "lightbox", "aria-label": viewer.getAttribute("aria-label") || "Image viewer" },
+  const many = items.length > 1;
+  const dlg = el("dialog", { class: "lightbox", "aria-label": viewer?.getAttribute("aria-label") || "Document viewer" },
     frame,
-    many ? btn("lightbox__prev", "Previous image", ICONS.prev(), () => go(-1)) : null,
-    many ? btn("lightbox__next", "Next image", ICONS.next(), () => go(1)) : null,
+    many ? btn("lightbox__prev", "Previous", ICONS.prev(), () => go(-1)) : null,
+    many ? btn("lightbox__next", "Next", ICONS.next(), () => go(1)) : null,
     zoom,
     btn("lightbox__close", "Close (Esc)", svgClose(), () => dlg.close()));
 
@@ -115,18 +142,21 @@ function openLightbox(startImg) {
     zoom.setAttribute("aria-pressed", String(on));
   }
   function go(by) {
-    index = (index + by + imgs.length) % imgs.length;
+    index = (index + by + items.length) % items.length;
     render();
   }
   function render() {
-    const src = imgs[index];
-    pic.src = src.currentSrc || src.src;
-    pic.alt = src.alt;
-    dlg.setAttribute("aria-description", `Image ${index + 1} of ${imgs.length}`);
+    const it = items[index];
+    const node = it.type === "pdf"
+      ? el("iframe", { class: "lightbox__pdf", src: `${it.src}#view=FitH`, title: it.title })
+      : el("img", { class: "lightbox__img", src: it.src, alt: it.alt || "" });
+    frame.replaceChildren(node);
+    zoom.hidden = it.type === "pdf";
+    dlg.setAttribute("aria-description", `${index + 1} of ${items.length}`);
     setZoom(false);
   }
 
-  frame.addEventListener("click", (e) => { if (e.target === pic) setZoom(!frame.classList.contains("is-zoomed")); });
+  frame.addEventListener("click", (e) => { if (e.target.matches(".lightbox__img")) setZoom(!frame.classList.contains("is-zoomed")); });
   dlg.addEventListener("keydown", (e) => {
     if (many && e.key === "ArrowRight") { e.preventDefault(); go(1); }
     if (many && e.key === "ArrowLeft") { e.preventDefault(); go(-1); }
@@ -134,15 +164,15 @@ function openLightbox(startImg) {
   if (many) onSwipe(frame, go);
   dlg.addEventListener("close", () => {
     dlg.remove();
-    // keep the inline viewer on the image last seen in the lightbox
-    const slide = imgs[index].closest(".viewer__slide");
-    show(viewer, slidesOf(viewer).indexOf(slide));
-    imgs[index].focus?.();
+    if (viewer && items[index].slideIndex !== undefined) show(viewer, items[index].slideIndex); // stay on the item last seen
+    opener?.focus?.();
   });
 
   render();
   document.body.append(dlg);
   dlg.showModal();
+  // Keep focus on the lightbox's own controls (not inside a PDF frame) so arrow keys and Esc work
+  dlg.querySelector(many ? ".lightbox__next" : ".lightbox__close").focus();
 }
 
 function svgClose() {
