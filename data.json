@@ -31,12 +31,12 @@
   "profile": {
     "name": "Tamara Pen",
     "eyebrow": "BSc (Hons) Biochemistry · University of Surrey",
-    "headline": "Biochemistry graduate — wet-lab research, data analysis and science communication",
+    "headline": "",
     "location": "United Kingdom",
     "photo": "assets/uploads/1795716393161-tamarapenimg.png",
     "photoAlt": "Photo of Tamara Pen",
     "photoPlaceholder": "",
-    "bio": "I am a creative and detail-oriented Biochemistry graduate with varied experience from experimental design and data analysis to wet-lab execution. My experience in leadership, training employees, teaching individuals with additional learning needs, and presenting scientific concepts at international conferences has developed my ability to adapt my communication. My analytical outlook combined with my interpersonal skills allows me to take complex ideas and confidently develop alternative approaches and solutions to make information accessible to both laymen, and scientific peers. Throughout my time at Koci Laboratory, I honed my skills in independently planning and managing investigative projects by critically evaluating scientific literature and translating evidence into informed hypotheses and research abstracts.\n\nAlong with my versatile background, I bring an inquisitive mindset, a willingness to take initiative and genuine enthusiasm for learning, contributing and finding better ways to approach challenges. I'm particularly interested in roles where I can diversify my skill set and continue growing my professional development.",
+    "bio": "I am a creative and detail-oriented Biochemistry graduate with varied experience from experimental design and data analysis to wet-lab execution. My experience in leadership, training employees, teaching individuals with additional learning needs, and presenting scientific concepts at international conferences has developed my ability to adapt my communication. My analytical outlook combined with my interpersonal skills allows me to take complex ideas and confidently develop alternative approaches and solutions to make information accessible to both laymen and scientific peers. Throughout my time at Koci Laboratory, I honed my skills in independently planning and managing investigative projects by critically evaluating scientific literature and translating evidence into informed hypotheses and research abstracts.\n\nAlong with my versatile background, I bring an inquisitive mindset, a willingness to take initiative and genuine enthusiasm for learning, contributing and finding better ways to approach challenges. I'm particularly interested in roles where I can diversify my skill set and continue growing my professional development.",
     "linkedin": "https://www.linkedin.com/in/tamara-pen-907269290/",
     "email": "tamaraapen02@gmail.com",
     "emailPlaceholder": "",
@@ -57,22 +57,21 @@
           "title": "",
           "groups": [
             {
-              "group": "Key skills",
+              "group": "Key Skills",
               "items": [
                 "Leadership",
-                "Research",
                 "Organisation",
                 "Time Management",
                 "Team Collaboration",
                 "Adaptability",
-                "Communication"
+                "Communication",
+                "Resilience Under Pressure"
               ]
             },
             {
-              "group": "Lab & research",
+              "group": "Lab & Research",
               "items": [
                 "Cell culture",
-                "Toxicity assays",
                 "Fluorescent & luminescent plate assays",
                 "Cell imaging",
                 "RNA isolation",
@@ -80,27 +79,30 @@
                 "Plasmid transfection",
                 "Flow cytometry",
                 "Experimental design",
-                "IACUC & animal welfare training"
+                "IACUC & Animal Welfare Training",
+                "Literature Review",
+                "Laboratory Housekeeping",
+                "Troubleshooting"
               ]
             },
             {
-              "group": "Data & tools",
+              "group": "Data & Tools",
               "items": [
                 "R",
                 "Excel",
                 "Tableau",
-                "Literature review",
-                "Canva"
+                "Canva",
+                "Graphic Design"
               ]
             },
             {
-              "group": "Science communication",
+              "group": "Science Communication",
               "items": [
                 "Translating complex concepts",
-                "Research presentation",
-                "Poster design",
-                "Graphic design",
-                "Public engagement"
+                "Data Visualisation",
+                "Presentations",
+                "Public Speaking",
+                "Scientific Writing"
               ]
             }
           ]
@@ -171,7 +173,7 @@
               "role": "MARS Work Experience",
               "org": "",
               "place": "Slough, UK",
-              "dates": "2019",
+              "dates": "Jul 2019",
               "summary": "Participated in a program where I worked within a team to research, design, and produce a product for MARS end-to-end, including:",
               "bullets": [
                 "Product & Concept: Market research and concept development.",
@@ -213,26 +215,37 @@
     },
     {
       "id": "work",
-      "title": "Projects & Documents",
+      "title": "Projects ",
       "navLabel": "Projects & Documents",
       "blocks": [
         {
-          "id": "projects-intro",
-          "type": "text",
-          "title": "Projects",
-          "body": ""
-        },
-        {
           "id": "psa2025",
           "type": "project",
-          "title": "Beta-carotene and Lipid Metabolism as Mediators of Probiotic-induced Immunometabolism Modulation",
+          "title": "114th Poultry Science Association (PSA) Annual Meeting ",
           "media": [
             {
-              "type": "image",
+              "type": "slides",
               "alt": "",
               "caption": "",
               "poster": "",
-              "src": "assets/uploads/1795722246581-vnbd-applespark.png"
+              "slides": [
+                {
+                  "src": "assets/uploads/1795795350154-ymfl-psa-1.jpg",
+                  "alt": ""
+                },
+                {
+                  "src": "assets/uploads/1795795350156-jpm4-psa-2.jpg",
+                  "alt": ""
+                },
+                {
+                  "src": "assets/uploads/1795795350157-eu4r-psa-4.jpg",
+                  "alt": ""
+                },
+                {
+                  "src": "assets/uploads/1795795350157-j8i9-psa-3.jpg",
+                  "alt": ""
+                }
+              ]
             }
           ],
           "accordions": [
