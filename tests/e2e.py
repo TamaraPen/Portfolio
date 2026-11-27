@@ -201,9 +201,20 @@ class Browser:
 # ---------------------------------------------------------------------------
 # Static server + check bookkeeping
 # ---------------------------------------------------------------------------
+FIXTURE_DATA = os.path.join(ROOT, "tests", "fixtures", "data.json")
+USE_FIXTURE = {"on": False}
+
+
 class QuietHandler(http.server.SimpleHTTPRequestHandler):
+    """Static files from the project. While USE_FIXTURE is on, /data.json is a fixed test copy of the
+    content, so checks don't break when the owner edits the real portfolio."""
     def log_message(self, *args):
         pass
+
+    def translate_path(self, path):
+        if USE_FIXTURE["on"] and path.split("?")[0] == "/data.json":
+            return FIXTURE_DATA
+        return super().translate_path(path)
 
 
 def start_server():
@@ -322,7 +333,7 @@ class MockGitHub:
         self.calls = []
         # The "remote" data.json the editor loads: the real file, with the first project's media and
         # documents cleared so owner tests start from the same state whatever has been saved live.
-        data = json.load(open(os.path.join(ROOT, "data.json"), encoding="utf-8"))
+        data = json.load(open(FIXTURE_DATA, encoding="utf-8"))
         first = next(b for sec in data["sections"] if sec["id"] == "work" for b in sec["blocks"] if b["type"] == "project")
         first["media"], first["documents"] = [], []
         self.data_json = json.dumps(data)
@@ -380,10 +391,19 @@ class MockGitHub:
 # Checks
 # ---------------------------------------------------------------------------
 def visitor_checks(b, url):
-    print("\nVisitor view · 1200px")
+    print("\nThe real content (data.json)")
     b.viewport(1200)
     b.goto(url)
-    data = json.load(open(os.path.join(ROOT, "data.json"), encoding="utf-8"))
+    real = json.load(open(os.path.join(ROOT, "data.json"), encoding="utf-8"))
+    check("the real data.json renders: every section and its nav entry, no console errors", lambda: (lambda r: (
+        r["sections"] == ["overview"] + [s["id"] for s in real["sections"]] and len(r["nav"]) == len(real["sections"]) + 1 and not b.console_errors(), (r, b.console_errors())))(
+        b.js("({ sections: [...document.querySelectorAll('main > section')].map(s => s.id), nav: [...document.querySelectorAll('[data-nav] a')].map(a => a.textContent) })")))
+
+    # Everything below runs against a fixed copy of the content (tests/fixtures/data.json)
+    USE_FIXTURE["on"] = True
+    print("\nVisitor view · 1200px (fixture content)")
+    b.goto(url)
+    data = json.load(open(FIXTURE_DATA, encoding="utf-8"))
     html = open(os.path.join(ROOT, "index.html"), encoding="utf-8").read()
     css = open(os.path.join(ROOT, "css", "styles.css"), encoding="utf-8").read()
 
