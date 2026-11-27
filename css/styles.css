@@ -337,6 +337,19 @@ main.wrap { display: grid; gap: var(--panel-gap); padding-top: var(--panel-gap);
 .icon-row { margin-top: 0; }
 .icon-row__item { position: relative; display: inline-flex; align-items: center; gap: .3rem; }
 
+/* Custom "Label: value" fields */
+.fields { display: grid; grid-template-columns: max-content 1fr; gap: .2rem .9rem; font-size: .88rem; margin: .35rem 0 .2rem; }
+.fields:empty { display: none; }
+.field { display: contents; }
+.field__label { font-weight: 600; color: var(--muted); }
+.field__value { margin: 0; color: var(--ink-soft); }
+
+/* Icon-button wrappers (so each button can be dragged in edit mode) */
+.social-wrap { position: relative; display: inline-flex; align-items: center; gap: .3rem; }
+.project__buttons .social-wrap:has(> .social.is-empty) { display: none; }
+.editing .project__buttons .social-wrap { display: inline-flex; }
+.contact__rows { display: grid; gap: .5rem; }
+
 /* Experience & education (CV layout: "Title – Organisation, Place" · dates on the right) */
 .entries { display: grid; gap: 1.5rem; }
 .entry { position: relative; }
@@ -361,7 +374,10 @@ main.wrap { display: grid; gap: var(--panel-gap); padding-top: var(--panel-gap);
   border: 1px solid var(--line); border-radius: var(--radius-panel);
   scroll-margin-top: calc(var(--header-h) + var(--panel-gap));
 }
-.project__title { font-size: 1.2rem; font-weight: 800; line-height: 1.3; letter-spacing: -.01em; margin-bottom: 1rem; }
+.project__head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: .25rem 1rem; margin-bottom: 1rem; }
+.project__title { font-size: 1.2rem; font-weight: 800; line-height: 1.3; letter-spacing: -.01em; flex: 1 1 20rem; }
+.project__date:empty { display: none; }
+.project > .fields { margin: -.4rem 0 1rem; }
 .project__grid { display: grid; gap: 1.5rem; align-items: start; grid-template-columns: minmax(0, 58fr) minmax(0, 42fr); }
 .project--no-media .project__grid { grid-template-columns: minmax(0, 1fr); }
 .project__side { display: flex; flex-direction: column; gap: .5rem; min-width: 0; }
@@ -409,6 +425,13 @@ main.wrap { display: grid; gap: var(--panel-gap); padding-top: var(--panel-gap);
 .viewer__frame[data-pos]::after { content: attr(data-pos); position: absolute; top: .6rem; left: .6rem; padding: .1rem .55rem; border-radius: 999px; background: var(--scrim); color: var(--on-accent); font-size: .72rem; font-weight: 600; }
 .viewer__media { display: block; max-width: 100%; max-height: var(--stage-h); width: auto; height: auto; object-fit: contain; }
 img.viewer__media { cursor: zoom-in; }
+/* Owner-chosen framing (Edit photo): fills the frame, zoomed around the chosen focus point */
+.viewer__media--cropped {
+  width: 100%; height: var(--stage-h); max-height: none; object-fit: cover;
+  object-position: var(--crop-x, 50%) var(--crop-y, 50%);
+  transform: scale(var(--crop-zoom, 1)); transform-origin: var(--crop-x, 50%) var(--crop-y, 50%);
+}
+.viewer__frame:has(> .viewer__media--cropped) { overflow: hidden; }
 video.viewer__media { width: 100%; background: var(--video-bg); }
 .viewer__pdf { position: relative; width: 100%; display: grid; gap: .6rem; justify-items: end; padding: .6rem; }
 .viewer__expand {
@@ -648,3 +671,26 @@ body.is-reordering, body.is-reordering * { cursor: grabbing !important; user-sel
 .editing .text-block:empty { min-height: 1.6rem; }
 .editing .text-block:empty::before { content: "Optional text"; font-size: .85rem; }
 .acc__label { margin-right: auto; }
+
+/* Edit mode: custom fields become rows (so each can be dragged and removed) */
+.editing .fields { display: grid; grid-template-columns: 1fr; gap: .6rem; }
+.editing .field { display: flex; flex-wrap: wrap; gap: .3rem .8rem; align-items: baseline; padding-left: .4rem; }
+.editing .fields:empty { display: block; }
+/* Small grips on pills and icon buttons */
+.tag > .ed-sort--corner, .social-wrap > .ed-sort--corner { top: -.7rem; left: -.6rem; }
+.tag > .ed-sort--corner .ed-grip, .social-wrap > .ed-sort--corner .ed-grip { width: 1rem; height: 1.15rem; font-size: .65rem; }
+.editing .hero__body > [data-item] { margin-left: .2rem; }
+.editing .project__date:empty { display: inline-block; }
+.editing .project__date:empty::before { content: "Optional date"; }
+
+/* Photo editor */
+.dlg--crop { width: min(32rem, 94vw); }
+.cropper { position: relative; overflow: hidden; margin: .4rem auto .8rem; border-radius: 8px; background: var(--viewer-bg); border: 1px solid var(--line); cursor: grab; touch-action: none; }
+.cropper.is-moving { cursor: grabbing; }
+.cropper:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.cropper .cropper__img { height: 100%; pointer-events: none; user-select: none; }
+.cropper__zoom { display: flex; align-items: center; gap: .75rem; font-size: .85rem; font-weight: 600; margin-bottom: 1rem; }
+.cropper__zoom input { flex: 1; accent-color: var(--accent); }
+/* "Edit link" on an icon button pops up under it instead of pushing the buttons apart */
+.social-wrap > .ed-inline { position: absolute; z-index: 5; top: calc(100% + .3rem); left: 50%; transform: translateX(-50%); margin: 0; white-space: nowrap; }
+.editing .socials { row-gap: 2rem; }

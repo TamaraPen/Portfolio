@@ -17,6 +17,7 @@
 //                           data-template picks the template/adder; data-sortable="y|x" adds
 //                           drag handles and up/down buttons)
 //   data-doclinks="path"    a project's "View full documents" list
+//                           data-no-remove / data-no-add: reorder only (fixed sets of items)
 //   data-badge="path"       placeholder badge text
 // Visitors get these attributes too, but without editor.js they do nothing.
 //
@@ -35,8 +36,13 @@ function badge(path, text) {
 
 /** Pill list. `pill` names the colour context (skills), see --pill-* tokens in styles.css. */
 const tagList = (path, items, pill) =>
-  el("ul", { class: "tags", "data-tags": path, "data-pill": pill },
-    items.map((t, i) => el("li", { class: "tag" }, el("span", ed(`${path}.${i}`), t))));
+  el("ul", { class: "tags", "data-tags": path, "data-pill": pill, ...reorderOnly(path, "grid") },
+    items.map((t, i) => el("li", { class: "tag", "data-item": `${path}.${i}` }, el("span", ed(`${path}.${i}`), t))));
+
+/** Attributes that make a fixed list draggable in edit mode (no add / remove controls). */
+function reorderOnly(path, axis = "y") {
+  return { "data-collection": path, "data-sortable": axis, "data-no-remove": "", "data-no-add": "" };
+}
 
 // --- Defaults + migration --------------------------------------------------------
 const DEFAULT_UI = {
@@ -97,14 +103,24 @@ function migrateToSections(d) {
 
 const BLOCK_DEFAULTS = {
   text: { title: "", body: "" },
-  project: { title: "", media: [], accordions: [], documents: [], buttons: [] },
+  project: { title: "", dates: "", fields: [], media: [], accordions: [], documents: [], buttons: [] },
   gallery: { title: "", media: [] },
   entries: { title: "", items: [], addLabel: "" },
   tags: { title: "", groups: [] },
   buttons: { buttons: [] },
   documents: { title: "", items: [] },
-  contact: { intro: "" },
+  contact: { intro: "", rows: null, fields: [] },
+  fields: { title: "", fields: [] },
 };
+
+const HERO_KEYS = ["eyebrow", "name", "headline", "bio", "cta", "socials"];
+const SOCIAL_KEYS = ["linkedin", "email", "cv", "github"];
+const CONTACT_KEYS = ["email", "linkedin", "location"];
+/** Keeps a saved order of known keys, dropping unknown ones and appending any that are missing. */
+function completeOrder(saved, keys) {
+  const list = (Array.isArray(saved) ? saved : []).filter((k, i, a) => keys.includes(k) && a.indexOf(k) === i);
+  return [...list, ...keys.filter((k) => !list.includes(k))];
+}
 
 export function ensureShape(d) {
   d.profile ||= {};
@@ -112,6 +128,9 @@ export function ensureShape(d) {
   if (!d.ui.brand) d.ui.brand = d.profile.name || "";
   if (!d.ui.footer) d.ui.footer = `${d.profile.name || ""} · Biochemistry`;
   for (const k of ["github", "cv", "photoAlt", "photoPlaceholder", "githubPlaceholder", "cvPlaceholder", "emailPlaceholder"]) d.profile[k] ??= "";
+  // Order of the items at the top of the page and of the four icon buttons (draggable in edit mode)
+  d.profile.heroOrder = completeOrder(d.profile.heroOrder, HERO_KEYS);
+  d.profile.socialOrder = completeOrder(d.profile.socialOrder, SOCIAL_KEYS);
   if (!Array.isArray(d.sections)) migrateToSections(d);
   for (const s of d.sections) {
     s.id ||= `section-${uid()}`;
@@ -120,8 +139,9 @@ export function ensureShape(d) {
     for (const b of s.blocks) {
       b.id ||= uid();
       for (const [k, v] of Object.entries(BLOCK_DEFAULTS[b.type] || {})) b[k] ??= Array.isArray(v) ? [] : v;
-      for (const x of b.items || []) if (b.type === "entries") { x.bullets ||= []; x.place ??= ""; x.summary ??= ""; }
+      for (const x of b.items || []) if (b.type === "entries") { x.bullets ||= []; x.place ??= ""; x.summary ??= ""; x.fields ||= []; }
       for (const g of b.groups || []) g.items ||= [];
+      if (b.type === "contact") b.rows = completeOrder(b.rows, CONTACT_KEYS);
     }
   }
   return d;
@@ -191,22 +211,30 @@ function overview(d) {
       el("ul", {}, navItems.map((n) =>
         el("li", {}, el("a", { href: `#${n.id}` }, el("span", ed(n.path), n.label)))))));
 
-  const body = el("div", { class: "hero__body", "data-section-box": "" },
-    el("p", { class: "eyebrow", ...ed("profile.eyebrow") }, p.eyebrow),
-    el("h1", { id: "overview-heading", ...ed("profile.name") }, p.name),
-    el("p", { class: "headline", ...ed("profile.headline") }, p.headline),
-    el("p", { class: "bio", ...ed("profile.bio", true) }, p.bio),
-    el("div", { class: "cta" },
+  const socials = {
+    linkedin: () => iconButton({ kind: "linkedin", label: "LinkedIn profile", path: "profile.linkedin", href: resolveUrl(p.linkedin) }),
+    email: () => iconButton({ kind: "email", label: `Email ${p.name}`, path: "profile.email", href: p.email ? `mailto:${p.email}` : null, external: false, extra: { "data-url-kind": "email" } }),
+    cv: () => iconButton({ kind: "cv", label: "CV", path: "profile.cv", href: resolveUrl(p.cv) }),
+    github: () => iconButton({ kind: "github", label: "GitHub profile", path: "profile.github", href: resolveUrl(p.github) }),
+  };
+  const hero = {
+    eyebrow: () => el("p", { class: "eyebrow", ...ed("profile.eyebrow") }, p.eyebrow),
+    name: () => el("h1", { id: "overview-heading", ...ed("profile.name") }, p.name),
+    headline: () => el("p", { class: "headline", ...ed("profile.headline") }, p.headline),
+    bio: () => el("p", { class: "bio", ...ed("profile.bio", true) }, p.bio),
+    cta: () => el("div", { class: "cta" },
       el("a", { class: "btn", href: "#work" }, el("span", ed("ui.viewProjects"), d.ui.viewProjects)),
       el("a", { class: "btn btn--ghost", href: "#contact" }, el("span", ed("ui.getInTouch"), d.ui.getInTouch))),
-    el("div", { class: "socials" },
-      iconButton({ kind: "linkedin", label: "LinkedIn profile", path: "profile.linkedin", href: resolveUrl(p.linkedin) }),
-      iconButton({ kind: "email", label: `Email ${p.name}`, path: "profile.email", href: p.email ? `mailto:${p.email}` : null, external: false, extra: { "data-url-kind": "email" } }),
-      iconButton({ kind: "cv", label: "CV", path: "profile.cv", href: resolveUrl(p.cv) }),
-      iconButton({ kind: "github", label: "GitHub profile", path: "profile.github", href: resolveUrl(p.github) })),
-    el("div", { class: "badges" },
-      p.github ? null : badge("profile.githubPlaceholder", p.githubPlaceholder),
-      p.cv ? null : badge("profile.cvPlaceholder", p.cvPlaceholder)));
+    socials: () => el("div", { class: "hero__socials" },
+      el("div", { class: "socials", ...reorderOnly("profile.socialOrder", "grid") },
+        p.socialOrder.map((k, i) => el("span", { class: "social-wrap", "data-item": `profile.socialOrder.${i}` }, socials[k]()))),
+      el("div", { class: "badges" },
+        p.github ? null : badge("profile.githubPlaceholder", p.githubPlaceholder),
+        p.cv ? null : badge("profile.cvPlaceholder", p.cvPlaceholder))),
+  };
+  // The items at the top of the page render in the saved order and can be dragged in edit mode
+  const body = el("div", { class: "hero__body", "data-section-box": "", ...reorderOnly("profile.heroOrder") },
+    p.heroOrder.map((k, i) => { const node = hero[k](); node.setAttribute("data-item", `profile.heroOrder.${i}`); return node; }));
 
   return [side, body];
 }
@@ -220,17 +248,32 @@ function slide(itemPath, content, caption, extra = {}) {
     el("figcaption", { class: "viewer__caption", ...ed(`${itemPath}.caption`) }, caption || ""));
 }
 
+/**
+ * Owner-chosen framing for a photo: { zoom: 1–4, x: 0–100, y: 0–100 } (x/y = focus point in %).
+ * Without it, the whole photo is shown. Applied with CSS custom properties through the CSSOM,
+ * which the CSP allows (no style attributes).
+ */
+const clamp = (v, lo, hi, dflt) => (Number.isFinite(+v) ? Math.min(hi, Math.max(lo, +v)) : dflt);
+function cropped(img, crop) {
+  if (!crop) return img;
+  img.classList.add("viewer__media--cropped");
+  img.style.setProperty("--crop-zoom", String(clamp(crop.zoom, 1, 4, 1)));
+  img.style.setProperty("--crop-x", `${clamp(crop.x, 0, 100, 50)}%`);
+  img.style.setProperty("--crop-y", `${clamp(crop.y, 0, 100, 50)}%`);
+  return img;
+}
+
 function mediaSlides(p, b, ui) {
   const out = [];
   p.media.forEach((m, i) => {
     const ip = `${b}.media.${i}`;
     const label = m.alt || m.caption || p.title;
     if (m.type === "image") {
-      out.push(slide(ip, el("img", { class: "viewer__media", src: localMediaUrl(m.src) || null, alt: m.alt || "", "data-lightbox": "", "data-alt-path": `${ip}.alt`, decoding: "async" }), m.caption));
+      out.push(slide(ip, cropped(el("img", { class: "viewer__media", src: localMediaUrl(m.src) || null, alt: m.alt || "", "data-lightbox": "", "data-alt-path": `${ip}.alt`, decoding: "async" }), m.crop), m.caption));
     } else if (m.type === "slides") {
       const list = Array.isArray(m.slides) ? m.slides : [];
       list.forEach((sl, j) => out.push(slide(ip,
-        el("img", { class: "viewer__media", src: localMediaUrl(sl.src) || null, alt: sl.alt || "", "data-lightbox": "", "data-alt-path": `${ip}.slides.${j}.alt`, decoding: "async" }),
+        cropped(el("img", { class: "viewer__media", src: localMediaUrl(sl.src) || null, alt: sl.alt || "", "data-lightbox": "", "data-alt-path": `${ip}.slides.${j}.alt`, decoding: "async" }), sl.crop),
         m.caption, { "data-slide-path": `${ip}.slides.${j}`, "data-pos": `${j + 1} / ${list.length}` })));
     } else if (m.type === "video") {
       out.push(slide(ip, el("video", {
@@ -301,7 +344,7 @@ function documentsRow(p, bp, ui) {
   return el("details", { class: "acc acc--docs", hidden: p.documents.length ? null : "" },
     el("summary", {}, el("span", { class: "acc__label", ...ed("ui.accDocs") }, ui.accDocs), ICONS.chevron()),
     el("div", { class: "acc__body" },
-      el("ul", { class: "doclinks", "data-doclinks": `${bp}.documents` }, p.documents.map((x, k) => {
+      el("ul", { class: "doclinks", "data-doclinks": `${bp}.documents`, ...reorderOnly(`${bp}.documents`) }, p.documents.map((x, k) => {
         const dp = `${bp}.documents.${k}`;
         const href = resolveUrl(x.url);
         return el("li", { class: "doclink", "data-item": dp },
@@ -315,16 +358,20 @@ function documentsRow(p, bp, ui) {
 }
 
 function buttonRow(buttons, bp, title, extraClass = "") {
-  return el("div", { class: `socials ${extraClass}`.trim() }, buttons.map((b, k) =>
-    iconButton({ kind: b.kind, label: `${BUTTON_LABEL[b.kind] || "Link"}${title ? `: ${title}` : ""}`, path: `${bp}.buttons.${k}.url`,
-      href: buttonHref(b.kind, b.url), external: b.kind !== "email", extra: b.kind === "email" ? { "data-url-kind": "email" } : {} })));
+  return el("div", { class: `socials ${extraClass}`.trim(), ...reorderOnly(`${bp}.buttons`, "grid") }, buttons.map((b, k) =>
+    el("span", { class: "social-wrap", "data-item": `${bp}.buttons.${k}` },
+      iconButton({ kind: b.kind, label: `${BUTTON_LABEL[b.kind] || "Link"}${title ? `: ${title}` : ""}`, path: `${bp}.buttons.${k}.url`,
+        href: buttonHref(b.kind, b.url), external: b.kind !== "email", extra: b.kind === "email" ? { "data-url-kind": "email" } : {} }))));
 }
 
 // Project: title on top; media viewer left (~58%) and dropdown rows right; rows span the full
 // width when there is no media. Nothing else is shown in a project panel.
 function projectBlock(p, bp, d) {
   return el("article", { class: `project${p.media.length ? "" : " project--no-media"}` },
-    el("h3", { id: `${p.id}-heading`, class: "project__title", ...ed(`${bp}.title`) }, p.title),
+    el("div", { class: "project__head" },
+      el("h3", { id: `${p.id}-heading`, class: "project__title", ...ed(`${bp}.title`) }, p.title),
+      el("span", { class: "project__date entry__dates", ...ed(`${bp}.dates`) }, p.dates)),
+    customFields(p.fields, `${bp}.fields`),
     el("div", { class: "project__grid" },
       viewer(p, bp, d.ui),
       el("div", { class: "project__side" },
@@ -351,27 +398,28 @@ function entry(base, x) {
         el("span", { class: "entry__org", ...ed(`${base}.org`) }, x.org),
         el("span", { class: "entry__place", ...ed(`${base}.place`) }, x.place)),
       el("span", { class: "entry__dates", ...ed(`${base}.dates`) }, x.dates)),
+    customFields(x.fields, `${base}.fields`),
     x.summary ? el("p", { class: "entry__summary", ...ed(`${base}.summary`, true) }, x.summary) : null,
-    el("ul", { class: "entry__bullets", "data-collection": `${base}.bullets`, "data-template": "bullet", "data-add-label": "Add bullet point" },
+    el("ul", { class: "entry__bullets", "data-collection": `${base}.bullets`, "data-template": "bullet", "data-sortable": "y", "data-add-label": "Add bullet point" },
       x.bullets.map((t, i) => el("li", { "data-item": `${base}.bullets.${i}` }, el("span", ed(`${base}.bullets.${i}`), t)))));
 }
 
 function entriesBlock(b, bp) {
   return el("div", {}, blockTitle(b, bp),
-    el("div", { class: "entries", "data-collection": `${bp}.items`, "data-template": "entry", "data-add-label": b.addLabel || "Add entry" },
+    el("div", { class: "entries", "data-collection": `${bp}.items`, "data-template": "entry", "data-sortable": "y", "data-add-label": b.addLabel || "Add entry" },
       b.items.map((x, i) => entry(`${bp}.items.${i}`, x))));
 }
 
 function tagsBlock(b, bp) {
   return el("div", {}, blockTitle(b, bp),
-    el("div", { class: "skill-groups", "data-collection": `${bp}.groups`, "data-template": "skills", "data-add-label": "Add skill group" },
+    el("div", { class: "skill-groups", "data-collection": `${bp}.groups`, "data-template": "skills", "data-sortable": "grid", "data-add-label": "Add skill group" },
       b.groups.map((g, i) => el("div", { class: "skill-group", "data-item": `${bp}.groups.${i}` },
         el("h4", ed(`${bp}.groups.${i}.group`), g.group),
         tagList(`${bp}.groups.${i}.items`, g.items, "skills")))));
 }
 
 function buttonsBlock(b, bp) {
-  return el("div", { class: "socials icon-row", "data-collection": `${bp}.buttons`, "data-template": "button", "data-add-label": "Add icon button" },
+  return el("div", { class: "socials icon-row", "data-collection": `${bp}.buttons`, "data-template": "button", "data-sortable": "grid", "data-add-label": "Add icon button" },
     b.buttons.map((x, k) => el("span", { class: "icon-row__item", "data-item": `${bp}.buttons.${k}` },
       iconButton({ kind: x.kind, label: BUTTON_LABEL[x.kind] || "Link", path: `${bp}.buttons.${k}.url`, href: buttonHref(x.kind, x.url),
         external: x.kind !== "email", extra: x.kind === "email" ? { "data-url-kind": "email" } : {} }))));
@@ -392,31 +440,51 @@ function docRow(x, dp, ui) {
 
 function documentsBlock(b, bp, d) {
   return el("div", { class: "docs-wrap" }, blockTitle(b, bp),
-    el("ul", { class: "docs", "data-collection": `${bp}.items`, "data-template": "documents", "data-add-label": "Add document" },
+    el("ul", { class: "docs", "data-collection": `${bp}.items`, "data-template": "documents", "data-sortable": "y", "data-add-label": "Add document" },
       b.items.map((x, i) => docRow(x, `${bp}.items.${i}`, d.ui))));
 }
 
 function contactBlock(b, bp, d) {
   const p = d.profile;
   const mail = p.email ? `mailto:${p.email}` : null;
-  return el("div", { class: "contact" },
-    el("p", { class: "contact__intro", ...ed(`${bp}.intro`, true) }, b.intro),
-    el("p", { class: "contact__row" },
+  const rows = {
+    email: () => [
       el("span", { class: "contact__label", ...ed("ui.contactEmail") }, d.ui.contactEmail),
       el("a", { href: mail, "data-email": "1" }, el("span", ed("profile.email"), p.email)),
-      badge("profile.emailPlaceholder", p.emailPlaceholder)),
-    el("p", { class: "contact__row" },
+      badge("profile.emailPlaceholder", p.emailPlaceholder)],
+    linkedin: () => [
       el("span", { class: "contact__label", ...ed("ui.contactLinkedIn") }, d.ui.contactLinkedIn),
       el("a", { "data-url": "profile.linkedin", href: resolveUrl(p.linkedin) || null, target: "_blank", rel: "noopener noreferrer" },
-        el("span", ed("ui.viewProfile"), d.ui.viewProfile))),
-    el("p", { class: "contact__row" },
+        el("span", ed("ui.viewProfile"), d.ui.viewProfile))],
+    location: () => [
       el("span", { class: "contact__label", ...ed("ui.contactLocation") }, d.ui.contactLocation),
-      el("span", ed("profile.location"), p.location)));
+      el("span", ed("profile.location"), p.location)],
+  };
+  return el("div", { class: "contact" },
+    el("p", { class: "contact__intro", ...ed(`${bp}.intro`, true) }, b.intro),
+    el("div", { class: "contact__rows", ...reorderOnly(`${bp}.rows`) },
+      b.rows.map((k, i) => el("p", { class: "contact__row", "data-item": `${bp}.rows.${i}` }, rows[k]()))),
+    customFields(b.fields, `${bp}.fields`));
+}
+
+/**
+ * Owner-defined "Label: value" fields. Used on entries and projects (fields: [...]), on the contact
+ * block, and as a section block of their own (type "fields"). Draggable, renamable, removable.
+ */
+function customFields(list, path) {
+  return el("dl", { class: "fields", "data-collection": path, "data-template": "field", "data-sortable": "y", "data-add-label": "Add field" },
+    (list || []).map((f, i) => el("div", { class: "field", "data-item": `${path}.${i}` },
+      el("dt", { class: "field__label", ...ed(`${path}.${i}.label`) }, f.label),
+      el("dd", { class: "field__value", ...ed(`${path}.${i}.value`) }, f.value))));
+}
+
+function fieldsBlock(b, bp) {
+  return el("div", {}, blockTitle(b, bp), customFields(b.fields, `${bp}.fields`));
 }
 
 const BLOCKS = {
   text: textBlock, project: projectBlock, gallery: galleryBlock, entries: entriesBlock,
-  tags: tagsBlock, buttons: buttonsBlock, documents: documentsBlock, contact: contactBlock,
+  tags: tagsBlock, buttons: buttonsBlock, documents: documentsBlock, contact: contactBlock, fields: fieldsBlock,
 };
 
 function block(b, bp, d) {

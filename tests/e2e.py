@@ -548,7 +548,7 @@ def visitor_checks(b, url):
 
     # --- Item 6: icon buttons
     def socials():
-        r = b.js("""[...document.querySelectorAll('#overview .hero__body .socials > a')].map(a => {
+        r = b.js("""[...document.querySelectorAll('#overview .hero__body .socials a.social')].map(a => {
           const s = getComputedStyle(a); const rc = a.getBoundingClientRect();
           return { cls: a.className, label: a.getAttribute('aria-label'), rel: a.getAttribute('rel'), target: a.getAttribute('target'),
                    href: a.getAttribute('href'), url: a.dataset.url, round: s.borderTopLeftRadius === '50%' || parseFloat(s.borderTopLeftRadius) >= rc.width / 2,
@@ -561,12 +561,12 @@ def visitor_checks(b, url):
         return (ok, r)
     check("four round icon buttons (LinkedIn, Email, CV, GitHub) with aria-label and rel", socials)
     check("external icon links open in a new tab, mailto: does not", lambda: b.js(
-        "(() => { const [li, em, cv, gh] = document.querySelectorAll('.socials > a');"
+        "(() => { const [li, em, cv, gh] = document.querySelectorAll('.socials a.social');"
         " return li.target === '_blank' && cv.target === '_blank' && gh.target === '_blank' && !em.hasAttribute('target')"
         f" && em.getAttribute('href') === 'mailto:{data['profile']['email']}' && li.getAttribute('href') === {json.dumps(data['profile']['linkedin'])}; }})()"))
     def cv_github_colours():
-        cv = icon_states(b, ".socials > .social--cv")
-        gh = icon_states(b, ".socials > .social--github")
+        cv = icon_states(b, ".socials .social--cv")
+        gh = icon_states(b, ".socials .social--github")
         ok = (cv[1]["bg"] == "rgb(75, 100, 85)" and cv[0]["fg"] == "rgb(75, 100, 85)"
               and gh[1]["fg"] == "rgb(255, 255, 255)" and all(int(v) <= 48 for v in re.findall(r"\d+", gh[1]["bg"])[:3]))
         return (ok, (cv, gh))
@@ -640,10 +640,10 @@ def visitor_checks(b, url):
         # placeholders have no link yet (so are not focusable); give them sample links for this check
         b.js("Promise.all([import('/js/render.js'), import('/js/state.js')]).then(([r, s]) => {"
              " s.state.data.profile.github = 'https://github.com/TamaraPen'; s.state.data.profile.cv = 'assets/uploads/cv.pdf'; r.renderAll(s.state.data); })")
-        sels = [f".socials > .social--{k}" for k in ("linkedin", "email", "cv", "github")]
+        sels = [f".socials .social--{k}" for k in ("linkedin", "email", "cv", "github")]
         report, ok = {}, True
-        sizes = b.js("[...document.querySelectorAll('#overview .socials > .social')].map(a => { const r = a.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)]; })")
-        trans = b.js("[...document.querySelectorAll('#overview .socials > .social')].map(a => getComputedStyle(a).transitionDuration)")
+        sizes = b.js("[...document.querySelectorAll('#overview .socials .social')].map(a => { const r = a.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)]; })")
+        trans = b.js("[...document.querySelectorAll('#overview .socials .social')].map(a => getComputedStyle(a).transitionDuration)")
         ok &= len(sizes) == 4 and len({tuple(x) for x in sizes}) == 1 and sizes[0][0] == sizes[0][1]
         ok &= len(set(trans)) == 1 and all(t.startswith("0.18s") for t in trans)
         for sel in sels:
@@ -658,7 +658,7 @@ def visitor_checks(b, url):
     def icon_links():
         b.js("Promise.all([import('/js/render.js'), import('/js/state.js')]).then(([r, s]) => {"
              " s.state.data.profile.github = 'https://github.com/TamaraPen'; s.state.data.profile.cv = 'assets/uploads/cv.pdf'; r.renderAll(s.state.data); })")
-        r = b.js("[...document.querySelectorAll('#overview .socials > .social')].map(a => [a.getAttribute('aria-label'), a.getAttribute('href')])")
+        r = b.js("[...document.querySelectorAll('#overview .socials .social')].map(a => [a.getAttribute('aria-label'), a.getAttribute('href')])")
         b.goto(url)
         ok = all(label and href and re.match(r"^(https://|mailto:|assets/uploads/)", href) for label, href in r)
         return (ok, r)
@@ -673,7 +673,7 @@ def visitor_checks(b, url):
         "(() => { const r = [...document.querySelectorAll('#work .block--project')].map(p => p.getBoundingClientRect()); return r.length === 5 && r.every((x, i) => i === 0 || (x.top > r[i-1].bottom && Math.abs(x.width - r[0].width) < 1)); })()"))
     check("the project title is top-left, above the viewer", lambda: b.js(
         "(() => { const p = document.querySelector('.project'); const t = p.querySelector('.project__title').getBoundingClientRect(); const v = p.querySelector('.viewer').getBoundingClientRect();"
-        " const s = p.querySelector('.project__side').getBoundingClientRect(); return t.bottom <= v.top && t.bottom <= s.top && Math.abs(t.left - v.left) < 2 && p.firstElementChild.matches('.project__title'); })()"))
+        " const s = p.querySelector('.project__side').getBoundingClientRect(); return t.bottom <= v.top && t.bottom <= s.top && Math.abs(t.left - v.left) < 2 && p.firstElementChild.matches('.project__head') && p.firstElementChild.firstElementChild.matches('.project__title'); })()"))
     check("viewer is at least 55% of the panel width and has a set height (22rem), so images never dominate", lambda: (lambda r: (r[0] >= 0.55 and 330 <= r[1] <= 450, r))(b.js(
         "(() => { const p = document.querySelector('.project'); const st = p.querySelector('.viewer__stage').getBoundingClientRect(); const s = p.querySelector('.project__side').getBoundingClientRect();"
         " return [st.width / p.querySelector('.project__grid').getBoundingClientRect().width, st.height, s.height]; })()")))
@@ -689,8 +689,27 @@ def visitor_checks(b, url):
     check("'View full documents' shows only when a project has documents", lambda: b.js(
         "(() => { const vis = p => { const d = p.querySelector('.acc--docs'); return !!d && getComputedStyle(d).display !== 'none'; }; const P = document.querySelectorAll('.project');"
         " return vis(P[0]) && !vis(P[2]) && P[0].querySelector('.accordion').nextElementSibling.matches('.acc--docs'); })()"))
-    check("media never uses object-fit: cover", lambda: b.js(
-        "[...document.querySelectorAll('.viewer img, .viewer video, .viewer iframe')].every(m => getComputedStyle(m).objectFit !== 'cover')"))
+    check("media never uses object-fit: cover (unless the owner chose a crop with Edit photo)", lambda: b.js(
+        "[...document.querySelectorAll('.viewer img, .viewer video, .viewer iframe')].filter(m => !m.classList.contains('viewer__media--cropped')).every(m => getComputedStyle(m).objectFit !== 'cover')"))
+
+    def date_and_crop():
+        b.js("""Promise.all([import('/js/render.js'), import('/js/state.js')]).then(([r, s]) => {
+          const P = s.state.data.sections.find((x) => x.id === 'work').blocks.filter((b) => b.type === 'project');
+          P[0].dates = 'Jun 2025'; P[0].media[0].crop = { zoom: 2, x: 30, y: 40 };
+          P[0].fields = [{ label: 'Role', value: 'Presenter' }];
+          r.renderAll(s.state.data); return true; })""")
+        r = b.js("""(() => { const p = document.querySelector('.project'); const h = p.querySelector('.project__head').getBoundingClientRect();
+          const d = p.querySelector('.project__date'); const t = p.querySelector('.project__title').getBoundingClientRect(); const dr = d.getBoundingClientRect();
+          const img = p.querySelector('.viewer__slide:not([hidden]) img'); const cs = getComputedStyle(img);
+          const empty = document.querySelectorAll('.project')[1].querySelector('.project__date');
+          return { date: d.textContent, right: Math.abs(dr.right - h.right) < 2, beside: dr.top < t.bottom, emptyHidden: getComputedStyle(empty).display === 'none',
+                   cropped: img.classList.contains('viewer__media--cropped'), fit: cs.objectFit, transform: cs.transform, pos: cs.objectPosition,
+                   field: [...p.querySelectorAll('.fields .field__label, .fields .field__value')].map(x => x.textContent) }; })()""")
+        ok = (r["date"] == "Jun 2025" and r["right"] and r["beside"] and r["emptyHidden"] and r["cropped"] and r["fit"] == "cover"
+              and r["transform"].startswith("matrix(2, 0, 0, 2") and r["pos"] == "30% 40%" and r["field"] == ["Role", "Presenter"])
+        b.js(INJECT_MEDIA)
+        return (ok, r)
+    check("project date shows right-aligned beside the title (hidden when empty); saved crop and custom fields render", date_and_crop)
     check("a portrait document fills the set-size stage (full height) without being cropped", lambda: (lambda r: (abs(r[2] - r[3]) < 2 and r[0] <= r[1] + 1 and r[4] == "contain", r))(b.js(
         "(() => { const i = document.querySelector('[data-viewer] .viewer__slide:not([hidden]) img'); const f = i.closest('.viewer__frame').getBoundingClientRect();"
         " const r = i.getBoundingClientRect(); return [r.width, f.width, r.height, f.height, getComputedStyle(i).objectFit]; })()")))
@@ -766,7 +785,7 @@ def visitor_checks(b, url):
     check("project rows come from data (all rows shown, even before they have text); round buttons from the shared component", lambda: b.js(
         "(() => { const p = document.querySelector('.project'); const shown = [...p.querySelectorAll('.acc')].filter(a => getComputedStyle(a).display !== 'none').map(a => a.querySelector('.acc__label').textContent);"
         " return shown.join('|') === 'Overview|Tools used / how it was built|What I learned|View full documents' && [...p.querySelectorAll('.acc')].every(a => !a.open)"
-        " && p.querySelectorAll('.project__buttons > .social').length === 3; })()"))
+        " && p.querySelectorAll('.project__buttons .social').length === 3; })()"))
 
     def mixed_media():
         types = []
@@ -1067,7 +1086,7 @@ def owner_checks(b, url):
     check("skill groups can be added and removed", add_remove("sections.0.blocks.0.groups", "Add skill group", "sections[0].blocks[0].groups"))
 
     check("icon buttons get link editors; email uses an address field", lambda: b.js(
-        "(() => { const s = [...document.querySelectorAll('.socials > a')]; return s.every(a => a.nextElementSibling?.classList.contains('ed-btn'))"
+        "(() => { const s = [...document.querySelectorAll('.socials a.social')]; return s.every(a => a.nextElementSibling?.classList.contains('ed-btn'))"
         " && s[1].nextElementSibling.textContent === 'Edit email' && s[0].nextElementSibling.textContent === 'Edit link'; })()"))
 
     # --- Media editing (project 1)
@@ -1257,6 +1276,84 @@ def owner_checks(b, url):
         return (ok, (rest, hover))
     check("item controls stay hidden until you hover a box; ✕ is small and on its top-right corner", quiet_until_hover)
 
+    def everything_draggable():
+        r = b.js("""(() => {
+          const grips = (sel) => [...document.querySelectorAll(sel)].map(x => x.querySelectorAll(':scope > .ed-sort .ed-grip, :scope > .ed-bar .ed-grip, :scope > summary .ed-grip').length);
+          const lists = {
+            heroItems: grips('.hero__body > [data-item]'), heroButtons: grips('#overview .socials > .social-wrap'),
+            sections: grips('main > section[data-item]'), blocks: grips('.blocks > .block'), entries: grips('.entries > .entry'),
+            bullets: grips('.entry__bullets > li[data-item]'), skillGroups: grips('.skill-groups > .skill-group'), tags: grips('.tags > .tag'),
+            docCards: grips('.docs > .doc'), projectButtons: grips('.project__buttons > .social-wrap'), rows: grips('.accordion > .acc'),
+            contactRows: grips('.contact__rows > .contact__row'),
+          };
+          return Object.fromEntries(Object.entries(lists).map(([k, v]) => [k, v.length && v.every(n => n === 1) ? v.length : `missing (${v.join(',')})`]));
+        })()""")
+        return (all(isinstance(v, int) and v > 0 for v in r.values()), r)
+    check("every element in a list has a drag handle (top items, icon buttons, entries, bullets, tags, documents, rows…)", everything_draggable)
+
+    def drag_hero_and_tag():
+        b.viewport(1200, 2400)
+        b.js("window.scrollTo(0, 0)")
+        drag("document.querySelector('.hero__body > h1').querySelector(':scope > .ed-sort .ed-grip')", "document.querySelector('.hero__body > .eyebrow')", where="before")
+        hero = b.js("[...document.querySelectorAll('.hero__body > [data-item]')].map(x => x.tagName === 'H1' ? 'name' : x.classList.contains('eyebrow') ? 'eyebrow' : x.tagName).slice(0, 2)")
+        first_tags = "document.querySelector('#skills .tags')"
+        tags_before = b.js(f"[...{first_tags}.querySelectorAll(':scope > .tag')].map(t => t.querySelector('[data-edit]').textContent)")
+        drag(f"{first_tags}.querySelector(':scope > .tag .ed-grip')", f"{first_tags}.querySelectorAll(':scope > .tag')[1]", axis="grid")
+        tags_after = b.js(f"[...document.querySelector('#skills .tags').querySelectorAll(':scope > .tag')].map(t => t.querySelector('[data-edit]').textContent)")
+        b.viewport(1200)
+        order = b.js("import('/js/state.js').then(m => m.state.data.profile.heroOrder.slice(0, 2))")
+        ok = hero == ["name", "eyebrow"] and order == ["name", "eyebrow"] and tags_after[:2] == [tags_before[1], tags_before[0]]
+        return (ok, (hero, order, tags_before[:2], tags_after[:2]))
+    check("the name/tagline items at the top and individual tags can be dragged", drag_hero_and_tag)
+
+    def custom_fields():
+        entry = "document.querySelector('[data-block-id=\"employment\"] .entry')"
+        b.js(f"[...{entry}.querySelectorAll('.ed-add')].find(x => x.textContent === '+ Add field').click()")
+        b.wait(f"{entry}.querySelector('.fields > .field')")
+        editable = b.js(f"(() => {{ const f = {entry}.querySelector('.fields > .field'); return f.querySelector('.field__label').isContentEditable && f.querySelector('.field__value').isContentEditable; }})()")
+        b.js(f"(() => {{ const v = {entry}.querySelector('.field__value'); v.textContent = 'Dr K. Koci'; v.dispatchEvent(new Event('input', {{bubbles: true}})); }})()")
+        b.js("document.querySelector('#education .blocks + .ed-add').click()")
+        b.wait("document.querySelector('dialog[open] select')")
+        b.js("(() => { const d = document.querySelector('dialog[open]'); d.querySelector('select').value = 'fields'; d.querySelector('.dlg__actions .btn:not(.btn--ghost)').click(); })()")
+        b.wait("document.querySelector('#education .block--fields .field')")
+        saved = save_now()
+        S = {x["id"]: x for x in saved.get("sections", [])}
+        exp_fields = next((bl for bl in S["experience"]["blocks"] if bl.get("id") == "employment"), {}).get("items", [{}])[0].get("fields")
+        edu_block = [bl for bl in S["education"]["blocks"] if bl["type"] == "fields"]
+        ok = editable and exp_fields == [{"label": "Label", "value": "Dr K. Koci"}] and edu_block and edu_block[0]["fields"][0]["label"] == "Label"
+        return (ok, (editable, exp_fields, edu_block))
+    check("custom label + value fields can be added to entries, and as a block in any section", custom_fields)
+
+    def photo_editor():
+        v = f"document.querySelector('[data-media=\"{P0}\"]')"
+        # go to the first slide that is a photo (earlier checks reorder this project's media)
+        b.js(f"(() => {{ const v = {v}; const k = [...v.querySelectorAll('.viewer__slide')].findIndex(s => s.querySelector('img')); v.querySelectorAll('.viewer__dot')[k]?.click(); }})()")
+        deck = "(" + P0_JS + ".find(x => x.type === 'slides'))"
+        b.js(f"[...{v}.querySelectorAll('.viewer__slide:not([hidden]) .ed-btn')].find(x => x.textContent.startsWith('Edit photo')).click()")
+        b.wait("document.querySelector('dialog.dlg--crop[open] .cropper img')")
+        if os.environ.get("E2E_SCREENSHOTS"):
+            b.sleep(0.2)
+            data = b.cmd("Page.captureScreenshot", format="png")["data"]
+            open(os.path.join(os.environ["E2E_SCREENSHOTS"], "photo-editor-1200.png"), "wb").write(base64.b64decode(data))
+        b.js("(() => { const z = document.querySelector('dialog[open] input[type=range]'); z.value = '2'; z.dispatchEvent(new Event('input', {bubbles: true})); })()")
+        x, y = center("document.querySelector('dialog[open] .cropper')")
+        b.cmd("Input.dispatchMouseEvent", type="mousePressed", x=x, y=y, button="left", buttons=1, clickCount=1)
+        for k in range(1, 6):
+            b.cmd("Input.dispatchMouseEvent", type="mouseMoved", x=x + 8 * k, y=y + 4 * k, button="left", buttons=1)
+        b.cmd("Input.dispatchMouseEvent", type="mouseReleased", x=x + 40, y=y + 20, button="left", buttons=0, clickCount=1)
+        b.js("document.querySelector('dialog[open] .cropper__save').click()")
+        b.sleep(0.3)
+        crop = b.js("import('/js/state.js').then(m => " + deck + ".slides[0].crop)")
+        shown = b.js(f"(() => {{ const i = {v}.querySelector('.viewer__slide:not([hidden]) img'); return [i.classList.contains('viewer__media--cropped'), getComputedStyle(i).transform]; }})()")
+        b.js(f"[...{v}.querySelectorAll('.viewer__slide:not([hidden]) .ed-btn')].find(x => x.textContent.startsWith('Edit photo')).click()")
+        b.wait("document.querySelector('dialog.dlg--crop[open]')")
+        b.js("document.querySelector('dialog[open] .cropper__reset').click()")
+        b.sleep(0.3)
+        reset = b.js("import('/js/state.js').then(m => " + deck + ".slides[0].crop === undefined)")
+        ok = (crop and crop["zoom"] == 2 and crop["x"] < 50 and crop["y"] < 50 and shown[0] and shown[1].startswith("matrix(2, 0, 0, 2") and reset)
+        return (ok, (crop, shown, reset))
+    check("Edit photo: zoom and drag to reposition are saved as framing; 'Show whole photo' resets it", photo_editor)
+
     def add_section():
         b.js("document.querySelector('main > .ed-add--section').click()")
         b.wait("document.querySelector('dialog[open] select')")
@@ -1275,7 +1372,7 @@ def owner_checks(b, url):
         b.wait("document.querySelector('#publications .block--gallery')")
         saved = save_now()
         pub = next((x for x in saved.get("sections", []) if x["id"] == "publications"), None)
-        ok = (options == ["text", "project", "gallery", "entries", "tags", "buttons", "documents"] and panel and nav == ["#publications", "Publications"]
+        ok = (options == ["text", "project", "gallery", "entries", "tags", "buttons", "documents", "fields"] and panel and nav == ["#publications", "Publications"]
               and pub and pub["title"] == "Publications" and [x["type"] for x in pub["blocks"]] == ["text", "gallery"])
         return (ok, (options, panel, nav, pub))
     check("Add section creates a panel and a nav entry, blocks can be added, and it survives Save", add_section)

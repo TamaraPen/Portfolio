@@ -430,7 +430,7 @@ function decorateEmail(node, path) {
 }
 
 // --- Templates and "add" dialogs -----------------------------------------------------
-const entryTemplate = () => ({ role: "New role", org: "Organisation", place: "Place", dates: "Dates", summary: "", bullets: ["New bullet point"] });
+const entryTemplate = () => ({ role: "New role", org: "Organisation", place: "Place", dates: "Dates", summary: "", fields: [], bullets: ["New bullet point"] });
 const projectButtons = () => [{ kind: "github", url: "" }, { kind: "live", url: "" }, { kind: "document", url: "" }];
 const TEMPLATES = {
   documents: () => ({ id: uid(), kind: "PDF", title: "New document", note: "Short description.", url: "", placeholder: "" }),
@@ -438,6 +438,7 @@ const TEMPLATES = {
   skills: () => ({ group: "New skill group", items: [] }),
   bullet: () => "New bullet point",
   accordion: () => ({ title: "New row", body: "" }),
+  field: () => ({ label: "Label", value: "Value" }),
 };
 
 const BLOCK_CHOICES = [
@@ -448,22 +449,24 @@ const BLOCK_CHOICES = [
   ["tags", "Tag list (like Skills)"],
   ["buttons", "Row of round icon buttons"],
   ["documents", "Documents list"],
+  ["fields", "Custom fields (label + value)"],
 ];
 function newBlock(type) {
   const id = uid();
   switch (type) {
     case "text": return { id, type, title: "New heading", body: "Write something here." };
-    case "project": return { id, type, title: "New project", media: [], documents: [], buttons: projectButtons(),
+    case "project": return { id, type, title: "New project", dates: "", fields: [], media: [], documents: [], buttons: projectButtons(),
       accordions: [{ title: "Overview", body: "" }, { title: "Tools used / how it was built", body: "" }, { title: "What I learned", body: "" }] };
     case "gallery": return { id, type, title: "", media: [] };
     case "entries": return { id, type, title: "", addLabel: "Add entry", items: [entryTemplate()] };
     case "tags": return { id, type, title: "", groups: [{ group: "New group", items: ["New tag"] }] };
     case "buttons": return { id, type, buttons: [{ kind: "live", url: "" }] };
     case "documents": return { id, type, title: "Documents", items: [] };
+    case "fields": return { id, type, title: "", fields: [{ label: "Label", value: "Value" }] };
     default: throw new Error("Unknown block type");
   }
 }
-const BLOCK_LABEL = { text: "Text", project: "Project", gallery: "Gallery", entries: "Entry list", tags: "Tag list", buttons: "Icon buttons", documents: "Documents list", contact: "Contact details" };
+const BLOCK_LABEL = { text: "Text", project: "Project", gallery: "Gallery", entries: "Entry list", tags: "Tag list", buttons: "Icon buttons", documents: "Documents list", contact: "Contact details", fields: "Custom fields" };
 const slugify = (s) => s.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "section";
 
 // Adders open a dialog first; they return true when something was added.
@@ -543,8 +546,8 @@ function startDrag(e, item, container, path, axis) {
   const items = [...container.querySelectorAll(":scope > [data-item]")];
   const from = items.indexOf(item);
   const others = items.filter((x) => x !== item);
-  const scroller = axis === "x" ? container : null;   // the media strip scrolls sideways
-  const line = el("div", { class: `ed-drop-line ed-drop-line--${axis}`, "data-editor-ui": "", "aria-hidden": "true" });
+  const scroller = container.matches(".ed-tray") ? container : null;   // the media strip scrolls sideways
+  const line = el("div", { class: `ed-drop-line ed-drop-line--${axis === "y" ? "y" : "x"}`, "data-editor-ui": "", "aria-hidden": "true" });
   document.body.append(line);
   item.classList.add("is-dragging");
   document.body.classList.add("is-reordering");
@@ -552,18 +555,26 @@ function startDrag(e, item, container, path, axis) {
   let last = { x: e.clientX, y: e.clientY };
   let raf = 0;
 
+  // "y": a vertical list; "x": one row; "grid": wrapping rows (pills, icon buttons, skill groups)
+  const before = (r) => (axis === "y" ? r.top + r.height / 2 < last.y
+    : axis === "x" ? r.left + r.width / 2 < last.x
+      : r.bottom < last.y || (r.top <= last.y && r.left + r.width / 2 < last.x));
   const place = () => {
-    const p = axis === "x" ? last.x : last.y;
     const rects = others.map((o) => o.getBoundingClientRect());
-    to = rects.filter((r) => (axis === "x" ? r.left + r.width / 2 : r.top + r.height / 2) < p).length;
+    to = rects.filter(before).length;
     const cr = container.getBoundingClientRect();
-    let at;
-    if (!rects.length) { const r = item.getBoundingClientRect(); at = axis === "x" ? r.left : r.top; }
-    else if (to < rects.length) at = (axis === "x" ? rects[to].left : rects[to].top) - 5;
-    else at = (axis === "x" ? rects[rects.length - 1].right : rects[rects.length - 1].bottom) + 3;
     // Positioning via the CSSOM (not style attributes), which the CSP allows
-    if (axis === "x") Object.assign(line.style, { left: `${at}px`, top: `${cr.top}px`, height: `${cr.height}px` });
-    else Object.assign(line.style, { top: `${at}px`, left: `${cr.left}px`, width: `${cr.width}px` });
+    if (axis === "y") {
+      let at;
+      if (!rects.length) at = item.getBoundingClientRect().top;
+      else if (to < rects.length) at = rects[to].top - 5;
+      else at = rects[rects.length - 1].bottom + 3;
+      Object.assign(line.style, { top: `${at}px`, left: `${cr.left}px`, width: `${cr.width}px`, height: "" });
+    } else {
+      const ref = rects.length ? (to < rects.length ? rects[to] : rects[rects.length - 1]) : item.getBoundingClientRect();
+      const at = to < rects.length || !rects.length ? ref.left - 5 : ref.right + 3;
+      Object.assign(line.style, { left: `${at}px`, top: `${ref.top}px`, height: `${ref.height}px`, width: "" });
+    }
   };
   // Auto-scroll while the pointer is near the edge of the window (or of the media strip)
   const tick = () => {
@@ -601,21 +612,22 @@ function startDrag(e, item, container, path, axis) {
 }
 
 function sortControls(item, container, path, index, count, axis) {
-  const prevLabel = axis === "x" ? "Move earlier" : "Move up";
-  const nextLabel = axis === "x" ? "Move later" : "Move down";
+  const row = axis !== "y";
+  const prevLabel = row ? "Move earlier" : "Move up";
+  const nextLabel = row ? "Move later" : "Move down";
   const grip = button("⠿", null, "ed-grip");
   grip.setAttribute("aria-label", "Drag to move (or use the arrow buttons)");
   grip.title = "Drag to move";
   grip.addEventListener("pointerdown", (e) => startDrag(e, item, container, path, axis));
   // Keyboard: arrow keys on a focused grip move the item (the ↑/↓ buttons also appear on focus)
   grip.addEventListener("keydown", (e) => {
-    const back = axis === "x" ? "ArrowLeft" : "ArrowUp";
-    const fwd = axis === "x" ? "ArrowRight" : "ArrowDown";
+    const back = row ? "ArrowLeft" : "ArrowUp";
+    const fwd = row ? "ArrowRight" : "ArrowDown";
     if (e.key === back && index > 0) { e.preventDefault(); moveItem(path, index, index - 1); }
     if (e.key === fwd && index < count - 1) { e.preventDefault(); moveItem(path, index, index + 1); }
   });
-  const up = button(axis === "x" ? "←" : "↑", () => moveItem(path, index, index - 1), "ed-move");
-  const down = button(axis === "x" ? "→" : "↓", () => moveItem(path, index, index + 1), "ed-move");
+  const up = button(row ? "←" : "↑", () => moveItem(path, index, index - 1), "ed-move");
+  const down = button(row ? "→" : "↓", () => moveItem(path, index, index + 1), "ed-move");
   up.setAttribute("aria-label", prevLabel);
   down.setAttribute("aria-label", nextLabel);
   if (index === 0) up.disabled = true;
@@ -643,6 +655,14 @@ function decorateCollection(container) {
     remove.setAttribute("aria-label", `Remove ${itemName(value)}`);
     remove.title = "Remove";
     item.classList.add("ed-box");
+    if ("noRemove" in container.dataset) {   // fixed set (or the list has its own ✕): grip only
+      if (axis) {
+        const controls = sortControls(item, container, path, index, items.length, axis);
+        controls.classList.add("ed-sort--corner");
+        item.prepend(controls);
+      }
+      return;
+    }
     if (tpl === "section" || tpl === "block") {
       // Sections and blocks: one labelled header bar, grip on the left, ✕ on the right
       remove.classList.add("ed-x--bar");
@@ -734,6 +754,9 @@ function decorateViewer(viewer) {
         }, "ed-btn--danger"),
         button("+ Add slides", () => addSlides(path, i))));
     }
+    if (item.type === "image" || deckPath) {
+      bar.append(button("Edit photo (zoom / crop)", () => editPhoto(deckPath || itemPath, slideEl.querySelector(".viewer__frame"))));
+    }
     if (item.type === "video") bar.append(button(item.poster ? "Replace poster" : "Add poster image", () => chooseImage(`${itemPath}.poster`)));
     const altPath = deckPath ? `${deckPath}.alt` : `${itemPath}.alt`;
     const altLabel = item.type === "image" || deckPath ? "Alt text: " : "Description (for screen readers): ";
@@ -806,4 +829,78 @@ async function addSlides(path, i) {
     },
   });
   if (ok) changed();
+}
+
+// --- Photo editor: zoom, crop and reposition (non-destructive) -------------------------
+// Saves { zoom, x, y } on the image (x/y = focus point in %); the original file is untouched,
+// "Show whole photo" removes the framing, and the lightbox always shows the whole photo.
+function editPhoto(path, frame) {
+  const item = getPath(state.data, path);
+  const src = localMediaUrl(item.src);
+  if (!src) return Promise.resolve(false);
+  const box = frame?.getBoundingClientRect();
+  const aspect = box && box.height ? box.width / box.height : 4 / 3;      // same shape as the viewer
+  const W = Math.min(440, Math.round(window.innerWidth * 0.8));
+  const H = Math.round(W / aspect);
+  const crop = { zoom: 1, x: 50, y: 50, ...(item.crop || {}) };
+  const round = (v, d) => Math.round(v * 10 ** d) / 10 ** d;
+  const lim = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+
+  const img = el("img", { class: "viewer__media viewer__media--cropped cropper__img", src, alt: "", draggable: "false" });
+  const stage = el("div", { class: "cropper", tabindex: "0", role: "application",
+    "aria-label": "Photo framing. Drag, or use the arrow keys, to move the photo; + and - to zoom." }, img);
+  Object.assign(stage.style, { width: `${W}px`, height: `${H}px` });   // CSSOM, CSP-safe
+  const zoom = el("input", { type: "range", min: "1", max: "4", step: "0.01", value: String(crop.zoom), "aria-label": "Zoom" });
+  const apply = () => {
+    img.style.setProperty("--crop-zoom", String(crop.zoom));
+    img.style.setProperty("--crop-x", `${crop.x}%`);
+    img.style.setProperty("--crop-y", `${crop.y}%`);
+    zoom.value = String(crop.zoom);
+  };
+  zoom.addEventListener("input", () => { crop.zoom = +zoom.value; apply(); });
+
+  let last = null;
+  stage.addEventListener("pointerdown", (e) => { last = { x: e.clientX, y: e.clientY }; stage.setPointerCapture(e.pointerId); stage.classList.add("is-moving"); });
+  stage.addEventListener("pointermove", (e) => {
+    if (!last) return;
+    crop.x = lim(crop.x - ((e.clientX - last.x) / W) * 100 / crop.zoom, 0, 100);
+    crop.y = lim(crop.y - ((e.clientY - last.y) / H) * 100 / crop.zoom, 0, 100);
+    last = { x: e.clientX, y: e.clientY };
+    apply();
+  });
+  const stop = () => { last = null; stage.classList.remove("is-moving"); };
+  stage.addEventListener("pointerup", stop);
+  stage.addEventListener("pointercancel", stop);
+  stage.addEventListener("wheel", (e) => { e.preventDefault(); crop.zoom = lim(crop.zoom - e.deltaY * 0.002, 1, 4); apply(); }, { passive: false });
+  stage.addEventListener("keydown", (e) => {
+    const step = { ArrowLeft: [-2, 0], ArrowRight: [2, 0], ArrowUp: [0, -2], ArrowDown: [0, 2] }[e.key];
+    if (step) { e.preventDefault(); crop.x = lim(crop.x + step[0], 0, 100); crop.y = lim(crop.y + step[1], 0, 100); apply(); }
+    if (e.key === "+" || e.key === "=") { e.preventDefault(); crop.zoom = lim(crop.zoom + 0.1, 1, 4); apply(); }
+    if (e.key === "-") { e.preventDefault(); crop.zoom = lim(crop.zoom - 0.1, 1, 4); apply(); }
+  });
+  apply();
+
+  return new Promise((resolve) => {
+    let result = null;
+    const titleId = uid();
+    const dlg = el("dialog", { class: "dlg dlg--crop", "aria-labelledby": titleId },
+      el("h2", { id: titleId }, "Edit photo"),
+      el("p", { class: "dlg__intro" }, "Drag the photo to reposition it and use the slider to zoom in. This only changes how it is framed on the page: the original file is kept, and the full-screen view always shows the whole photo."),
+      stage,
+      el("label", { class: "cropper__zoom" }, el("span", {}, "Zoom"), zoom),
+      el("div", { class: "dlg__actions dlg__actions--wrap" },
+        el("button", { type: "button", class: "btn btn--ghost cropper__reset", onclick: () => { result = "reset"; dlg.close(); } }, "Show whole photo"),
+        el("button", { type: "button", class: "btn btn--ghost", onclick: () => dlg.close() }, "Cancel"),
+        el("button", { type: "button", class: "btn cropper__save", onclick: () => { result = "save"; dlg.close(); } }, "Save framing")));
+    dlg.addEventListener("close", () => {
+      dlg.remove();
+      if (result === "save") setPath(state.data, `${path}.crop`, { zoom: round(crop.zoom, 2), x: round(crop.x, 1), y: round(crop.y, 1) });
+      if (result === "reset") delete getPath(state.data, path).crop;
+      if (result) changed();
+      resolve(Boolean(result));
+    });
+    document.body.append(dlg);
+    dlg.showModal();
+    stage.focus();
+  });
 }
