@@ -251,7 +251,11 @@
           "accordions": [
             {
               "title": "Overview",
-              "body": "Poster talk presented in a comic-themed format at my first national conference, as one of about 20 participating undergraduates. Supervised by the Koci Laboratory team at NC State.\n\nPoultry Science Association (PSA) Annual Meeting · Raleigh, NC · 2025\n\nPresented: “Beta-carotene and Lipid Metabolism as Mediators of Probiotic-induced Immunometabolism Modulation”. 2025 Poultry Science Association Annual Meeting Abstract Book, Abstract 423P, p. 194.\nContributed: “Probiotic-induced microbiome modulation alters immune cell metabolism through the mevalonate pathway”. 2025 Poultry Science Association Annual Meeting Abstract Book, Abstract 3, p. 5."
+              "body": "Poster talk presented in a comic-themed format at my first national conference in Raleigh, NC, as one of about 20 participating undergraduates. Supervised by the Koci Laboratory team at NC State.\n\nPresented: “Beta-carotene and Lipid Metabolism as Mediators of Probiotic-induced Immunometabolism Modulation”. "
+            },
+            {
+              "title": "Project Details",
+              "body": ""
             },
             {
               "title": "Tools used / how it was built",
